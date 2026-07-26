@@ -221,6 +221,54 @@ async fn send_chat(
 }
 
 #[tauri::command]
+async fn rag_list_sources() -> Result<String, String> {
+    let request = IpcRequest {
+        cmd: "rag_list_sources".into(),
+        messages: None, mode: None, model: None, session_id: None,
+    };
+    let response = ipc_send_recv(&request).await?;
+    Ok(response
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No data")
+        .to_string())
+}
+
+#[tauri::command]
+async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String> {
+    // rag_search needs special handling — the IPC request shape differs
+    let socket = daemon_socket_path();
+    let stream = UnixStream::connect(&socket)
+        .await
+        .map_err(|e| format!("Daemon not running ({}: {})", socket.display(), e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+
+    let payload = serde_json::json!({
+        "cmd": "rag_search",
+        "query": query,
+        "limit": limit.unwrap_or(5),
+    });
+    writer
+        .write_all(format!("{}\n", payload).as_bytes())
+        .await
+        .map_err(|e| format!("write: {}", e))?;
+
+    let mut line = String::new();
+    buf_reader
+        .read_line(&mut line)
+        .await
+        .map_err(|e| format!("read: {}", e))?;
+    let response: Value = serde_json::from_str(&line)
+        .map_err(|e| format!("JSON decode: {}", e))?;
+    Ok(response
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No results")
+        .to_string())
+}
+
+#[tauri::command]
 async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
     use tauri_plugin_notification::NotificationExt;
     app.notification()
@@ -275,7 +323,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

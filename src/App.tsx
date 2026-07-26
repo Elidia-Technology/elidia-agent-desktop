@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
+import RagManager from "./RagManager";
 import "./App.css";
 
 interface ChatEvent {
@@ -36,6 +37,7 @@ function App() {
   const [mode, setMode] = useState("chat");
   const [dragOver, setDragOver] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [showRag, setShowRag] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,7 +143,9 @@ function App() {
   return (
     <main className="chat-app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragOver && <div className="drop-overlay">Drop files to attach</div>}
-      <header className="chat-header">
+      <div className="app-body">
+        <div className="chat-column">
+          <header className="chat-header">
         <div className="header-left">
           <span className="app-name">Elidia Agent Desktop</span>
           <span className={`daemon-dot ${daemonRunning ? "on" : daemonRunning === false ? "off" : "unknown"}`} />
@@ -156,6 +160,9 @@ function App() {
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
+          <button className="refresh-btn" onClick={() => setShowRag(!showRag)} title="RAG Manager">
+            {showRag ? "✕" : "📚"}
+          </button>
           <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>
       </header>
@@ -213,6 +220,9 @@ function App() {
           Send
         </button>
       </form>
+        </div>
+        {showRag && <RagManager />}
+      </div>
     </main>
   );
 }

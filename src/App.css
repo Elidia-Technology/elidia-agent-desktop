@@ -27,6 +27,8 @@
   height: 100vh;
   max-height: 100vh;
 }
+.app-body { display: flex; flex: 1; min-height: 0; }
+.chat-column { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 
 /* ---- header ---- */
 .chat-header {

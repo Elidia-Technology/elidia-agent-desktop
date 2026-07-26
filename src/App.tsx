@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
 import "./App.css";
 
 interface ChatEvent {
@@ -33,10 +34,13 @@ function App() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState("chat");
+  const [dragOver, setDragOver] = useState(false);
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     checkDaemon();
+    requestNotificationPermission();
     const unlisten = listen<ChatEvent>("chat-event", (event) => {
       const { event: kind, data } = event.payload;
       switch (kind) {
@@ -89,6 +93,22 @@ function App() {
     }
   }
 
+  async function requestNotificationPermission() {
+    try {
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        granted = permission === "granted";
+      }
+      setNotifyEnabled(granted);
+    } catch { /* plugin not available in dev */ }
+  }
+
+  async function sendNotification(title: string, body: string) {
+    if (!notifyEnabled) return;
+    try { await invoke("notify", { title, body }); } catch { /* ok */ }
+  }
+
   async function sendMessage() {
     const text = input.trim();
     if (!text || sending) return;
@@ -97,14 +117,30 @@ function App() {
     setMessages((prev) => [...prev, { role: "user", text }]);
     try {
       await invoke("send_chat", { message: text, mode, model: null });
+      sendNotification("Elidia", "Response ready");
     } catch (e) {
       setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]);
       setSending(false);
     }
   }
 
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(true);
+  }
+  function onDragLeave() { setDragOver(false); }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const names = files.map((f) => f.name).join(", ");
+    setInput((prev) => prev + (prev ? " " : "") + `[Attached: ${names}]`);
+  }
+
   return (
-    <main className="chat-app">
+    <main className="chat-app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      {dragOver && <div className="drop-overlay">Drop files to attach</div>}
       <header className="chat-header">
         <div className="header-left">
           <span className="app-name">Elidia Agent Desktop</span>

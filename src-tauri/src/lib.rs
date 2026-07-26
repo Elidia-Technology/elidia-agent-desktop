@@ -269,6 +269,30 @@ async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String>
 }
 
 #[tauri::command]
+async fn get_daemon_config() -> Result<Value, String> {
+    let request = IpcRequest {
+        cmd: "get_daemon_config".into(),
+        messages: None, mode: None, model: None, session_id: None,
+    };
+    ipc_send_recv(&request).await
+}
+
+#[tauri::command]
+async fn get_audit_log(limit: Option<i32>) -> Result<Value, String> {
+    let socket = daemon_socket_path();
+    let stream = UnixStream::connect(&socket)
+        .await
+        .map_err(|e| format!("Daemon not running: {}", e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let payload = serde_json::json!({"cmd":"get_audit_log","limit":limit.unwrap_or(40)});
+    writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    let mut line = String::new();
+    buf_reader.read_line(&mut line).await.map_err(|e| format!("read: {}", e))?;
+    serde_json::from_str(&line).map_err(|e| format!("JSON: {}", e))
+}
+
+#[tauri::command]
 async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
     use tauri_plugin_notification::NotificationExt;
     app.notification()
@@ -323,7 +347,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search, get_daemon_config, get_audit_log])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

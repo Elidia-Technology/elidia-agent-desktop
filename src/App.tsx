@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
 import RagManager from "./RagManager";
+import DaemonDashboard from "./DaemonDashboard";
+import AuditLog from "./AuditLog";
 import "./App.css";
 
 interface ChatEvent {
@@ -38,6 +40,8 @@ function App() {
   const [dragOver, setDragOver] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [showRag, setShowRag] = useState(false);
+  const [showDash, setShowDash] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -163,6 +167,12 @@ function App() {
           <button className="refresh-btn" onClick={() => setShowRag(!showRag)} title="RAG Manager">
             {showRag ? "✕" : "📚"}
           </button>
+          <button className="refresh-btn" onClick={() => setShowDash(!showDash)} title="Daemon Dashboard">
+            {showDash ? "✕" : "⚙"}
+          </button>
+          <button className="refresh-btn" onClick={() => setShowAudit(!showAudit)} title="Audit Log">
+            {showAudit ? "✕" : "🔍"}
+          </button>
           <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>
       </header>
@@ -222,6 +232,8 @@ function App() {
       </form>
         </div>
         {showRag && <RagManager />}
+        {showDash && <DaemonDashboard />}
+        {showAudit && <AuditLog />}
       </div>
     </main>
   );

@@ -1,49 +1,182 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+interface ChatEvent {
+  event: string;
+  data: unknown;
+}
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+interface ToolCallData {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+interface ToolResultData {
+  name: string;
+  content: string;
+}
+
+type Message =
+  | { role: "user"; text: string }
+  | { role: "assistant"; text: string }
+  | { role: "tool-call"; name: string; args: Record<string, unknown> }
+  | { role: "tool-result"; name: string; content: string }
+  | { role: "thinking"; model: string };
+
+const MODES = ["chat", "code", "research", "think", "create"];
+
+function App() {
+  const [daemonRunning, setDaemonRunning] = useState<boolean | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [mode, setMode] = useState("chat");
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    checkDaemon();
+    const unlisten = listen<ChatEvent>("chat-event", (event) => {
+      const { event: kind, data } = event.payload;
+      switch (kind) {
+        case "thinking":
+          setMessages((prev) => [
+            ...prev,
+            { role: "thinking", model: String((data as Record<string, unknown>)?.model ?? "auto") },
+          ]);
+          break;
+        case "tool_call": {
+          const tc = data as ToolCallData;
+          setMessages((prev) => [...prev, { role: "tool-call", name: tc.name, args: tc.arguments }]);
+          break;
+        }
+        case "tool_result": {
+          const tr = data as ToolResultData;
+          setMessages((prev) => [
+            ...prev,
+            { role: "tool-result", name: tr.name, content: tr.content },
+          ]);
+          break;
+        }
+        case "content":
+          setMessages((prev) => [...prev, { role: "assistant", text: String(data) }]);
+          break;
+        case "done":
+          setSending(false);
+          break;
+        case "error":
+          setMessages((prev) => [...prev, { role: "assistant", text: `Error: ${data}` }]);
+          setSending(false);
+          break;
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function checkDaemon() {
+    try {
+      const status = await invoke<{ running: boolean }>("daemon_status");
+      setDaemonRunning(status.running);
+    } catch {
+      setDaemonRunning(false);
+    }
+  }
+
+  async function sendMessage() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput("");
+    setSending(true);
+    setMessages((prev) => [...prev, { role: "user", text }]);
+    try {
+      await invoke("send_chat", { message: text, mode, model: null });
+    } catch (e) {
+      setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]);
+      setSending(false);
+    }
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <main className="chat-app">
+      <header className="chat-header">
+        <div className="header-left">
+          <span className="app-name">Elidia Agent Desktop</span>
+          <span className={`daemon-dot ${daemonRunning ? "on" : daemonRunning === false ? "off" : "unknown"}`} />
+          <span className="daemon-label">
+            {daemonRunning === null ? "checking..." : daemonRunning ? "daemon running" : "daemon stopped"}
+          </span>
+        </div>
+        <div className="header-right">
+          <span className="mode-label">mode:</span>
+          <select value={mode} onChange={(e) => setMode(e.target.value)} className="mode-select">
+            {MODES.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
+        </div>
+      </header>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className="message-list">
+        {messages.length === 0 && (
+          <div className="empty-state">
+            <p>Elidia Agent Desktop — Phase 1</p>
+            <p className="sub">Send a message to start. The daemon must be running
+            (<code>elidia daemon start</code> in a terminal first).</p>
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} className={`message ${msg.role}`}>
+            {msg.role === "user" && <div className="bubble user-bubble">{msg.text}</div>}
+            {msg.role === "assistant" && <div className="bubble assistant-bubble">{msg.text}</div>}
+            {msg.role === "tool-call" && (
+              <div className="tool-card">
+                <span className="tool-icon">🔧</span>
+                <span className="tool-name">{msg.name}({JSON.stringify(msg.args)})</span>
+              </div>
+            )}
+            {msg.role === "tool-result" && (
+              <div className="tool-card result">
+                <span className="tool-icon">📋</span>
+                <span className="tool-content">{msg.content.slice(0, 200)}</span>
+              </div>
+            )}
+            {msg.role === "thinking" && (
+              <div className="thinking-line">
+                <span className="thinking-icon">🧠</span> thinking with {msg.model}…
+              </div>
+            )}
+          </div>
+        ))}
+        {sending && <div className="message assistant"><div className="bubble assistant-bubble typing">…</div></div>}
+        <div ref={endRef} />
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
       <form
-        className="row"
+        className="composer"
         onSubmit={(e) => {
           e.preventDefault();
-          greet();
+          sendMessage();
         }}
       >
         <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+          className="composer-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={daemonRunning ? "Send a message…" : "Daemon not running — start with 'elidia daemon start' first"}
+          disabled={!daemonRunning || sending}
         />
-        <button type="submit">Greet</button>
+        <button type="submit" disabled={!daemonRunning || sending || !input.trim()}>
+          Send
+        </button>
       </form>
-      <p>{greetMsg}</p>
     </main>
   );
 }

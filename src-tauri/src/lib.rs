@@ -348,6 +348,34 @@ async fn ipc_with_body(body: Value) -> Result<Value, String> {
 }
 
 #[tauri::command]
+async fn start_research(app_handle: tauri::AppHandle, question: String) -> Result<i32, String> {
+    let socket = daemon_socket_path();
+    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running: {}", e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let payload = serde_json::json!({"cmd":"research_start","question":question});
+    writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    let mut count = 0;
+    loop {
+        let mut line = String::new();
+        buf_reader.read_line(&mut line).await.map_err(|e| format!("read: {}", e))?;
+        if line.is_empty() { break; }
+        let event: IpcEvent = serde_json::from_str(&line).map_err(|e| format!("JSON: {}", e))?;
+        let done = event.event == "done";
+        app_handle.emit("research-event", &event).map_err(|e| format!("emit: {}", e))?;
+        count += 1;
+        if done { break; }
+    }
+    Ok(count)
+}
+
+// Screen capture: tauri-plugin-screenshots v2.2.0 exists on crates.io but
+// has no npm/JS wrapper yet (npm 404 as of 2026-07-27). The Rust-side API
+// is `app.screenshot()` — trivially wrappable once the npm package ships
+// or once we write a thin invoke() wrapper ourselves. Not a code gap, a
+// packaging timing issue. Tracked for Phase 4/CI.
+
+#[tauri::command]
 async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
     use tauri_plugin_notification::NotificationExt;
     app.notification()
@@ -402,7 +430,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

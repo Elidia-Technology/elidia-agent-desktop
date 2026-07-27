@@ -20,3 +20,16 @@
 .info-balance { text-align: center; padding: 20px 0; }
 .balance-big { font-family: var(--font-mono); font-size: 28px; font-weight: 600; color: var(--accent); }
 .balance-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+.research-event {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; margin-bottom: 4px; font-family: var(--font-mono); font-size: 11px;
+}
+.research-event.decompose { border-left: 3px solid var(--accent); }
+.research-event.search { border-left: 3px solid var(--info); }
+.research-event.analyze { border-left: 3px solid var(--warn); }
+.research-event.synthesize { border-left: 3px solid var(--ok); }
+.research-event.done { border-left: 3px solid var(--ok); background: var(--ok); opacity: 0.1; }
+.research-event.error { border-left: 3px solid var(--bad); color: var(--bad); }
+.re-kind { color: var(--text-dim); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; margin-right: 8px; }
+.re-data { color: var(--text-dim); }

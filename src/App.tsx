@@ -9,6 +9,7 @@ import WorkflowBuilder from "./WorkflowBuilder";
 import InfoPanel from "./InfoPanel";
 import AdvancedPanel from "./AdvancedPanel";
 import SessionSidebar from "./SessionSidebar";
+import Onboarding from "./Onboarding";
 import "./App.css";
 
 interface ChatEvent {
@@ -52,8 +53,11 @@ function App() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [listening, setListening] = useState(false);
   const [permRequest, setPermRequest] = useState<{id:string;description?:string} | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("elidia-onboarded"));
   const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  function finishOnboarding() { localStorage.setItem("elidia-onboarded", "1"); setShowOnboarding(false); }
 
   function handleLoadMessages(msgs: {role:string;text:string}[]) {
     setMessages(msgs.map((m) => m.role === "user" ? { role: "user" as const, text: m.text } : { role: "assistant" as const, text: m.text }));
@@ -201,6 +205,7 @@ function App() {
 
   return (
     <main className="chat-app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      {showOnboarding && <Onboarding onDone={finishOnboarding} />}
       {dragOver && <div className="drop-overlay">Drop files to attach</div>}
       <div className="app-body">
         {showSidebar && <SessionSidebar onLoadMessages={handleLoadMessages} />}

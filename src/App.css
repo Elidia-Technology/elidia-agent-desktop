@@ -184,3 +184,16 @@
 .perm-buttons { display: flex; gap: 12px; justify-content: center; }
 .perm-deny { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .perm-allow { background: var(--accent); color: var(--bg); border: none; border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+/* ---- onboarding ---- */
+.onboard-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 300; display: flex; align-items: center; justify-content: center; }
+.onboard-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; }
+.onboard-modal h2 { margin: 0 0 16px; font-size: 20px; }
+.onboard-modal p { font-size: 14px; color: var(--text-dim); margin: 0 0 12px; }
+.onboard-hint { font-size: 12px !important; color: var(--text-dim) !important; }
+.onboard-input { width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-bottom: 8px; outline: none; }
+.onboard-input:focus { border-color: var(--accent); }
+.onboard-status { font-size: 12px; color: var(--ok); min-height: 18px; }
+.onboard-buttons { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+.onboard-btn { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
+.onboard-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }

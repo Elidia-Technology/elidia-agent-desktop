@@ -378,6 +378,10 @@ async fn store_email_creds(address: String, password: String, smtp_host: String,
     ipc_with_body(serde_json::json!({"cmd":"store_email_credentials","address":address,"password":password,"smtp_host":smtp_host,"smtp_port":smtp_port,"imap_host":imap_host,"imap_port":imap_port,"from_address":from_address.unwrap_or(address)})).await
 }
 #[tauri::command]
+async fn list_available_models() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "list_available_models".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+#[tauri::command]
 async fn list_local_models() -> Result<Value, String> {
     ipc_send_recv(&IpcRequest { cmd: "list_local_models".into(), messages: None, mode: None, model: None, session_id: None }).await
 }
@@ -621,7 +625,7 @@ pub fn run() {
             Ok(())
         })
         .manage(PermissionState { pending: Mutex::new(HashMap::new()) })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, authenticate_biometric, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local, store_api_key, store_email_creds])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, authenticate_biometric, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_available_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local, store_api_key, store_email_creds])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

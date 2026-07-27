@@ -1,0 +1,72 @@
+# Elidia Agent Desktop — GitLab CI/CD Pipeline
+# Builds macOS, Linux, and Windows installers on push to master.
+#
+# Requires GitLab runners tagged with the corresponding OS.
+# To register a runner on any machine:
+#   gitlab-runner register --url https://git.aiutils.io --token <token>
+#
+# macOS: needs a physical Mac or MacStadium VM with Xcode + Rust + Node
+# Linux: any Ubuntu 22.04+ runner with webkit2gtk deps + Rust + Node
+# Windows: any Windows 10/11 runner with Rust + Node
+
+stages:
+  - build
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+
+# Cache Rust + Node dependencies across builds
+cache:
+  paths:
+    - .cargo/
+    - node_modules/
+
+build-macos:
+  stage: build
+  tags:
+    - macos
+  script:
+    - npm ci
+    - npm run tauri build
+  artifacts:
+    name: "elidia-agent-desktop-macos-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - src-tauri/target/release/bundle/dmg/*.dmg
+    expire_in: 30 days
+  only:
+    - master
+
+build-linux:
+  stage: build
+  image: rust:1.97-slim
+  tags:
+    - docker
+  before_script:
+    - apt-get update
+    - apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf libsoup-3.0-dev libjavascriptcoregtk-4.1-dev nodejs npm
+  script:
+    - npm ci
+    - npm run tauri build
+  artifacts:
+    name: "elidia-agent-desktop-linux-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - src-tauri/target/release/bundle/deb/*.deb
+      - src-tauri/target/release/bundle/appimage/*.AppImage
+    expire_in: 30 days
+  only:
+    - master
+
+build-windows:
+  stage: build
+  tags:
+    - windows
+  script:
+    - npm ci
+    - npm run tauri build
+  artifacts:
+    name: "elidia-agent-desktop-windows-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - src-tauri/target/release/bundle/msi/*.msi
+    expire_in: 30 days
+  only:
+    - master

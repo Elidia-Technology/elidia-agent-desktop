@@ -458,6 +458,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_screenshots::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init())
         .setup(|app| {
             // ---- tray icon with menu ----
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -494,6 +495,17 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // ---- minimize to tray on close (AIUT-2150) ----
+            if let Some(window) = app.get_webview_window("main") {
+                let w = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    }
+                });
+            }
 
             Ok(())
         })

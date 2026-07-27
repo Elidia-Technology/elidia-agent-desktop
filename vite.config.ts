@@ -12,6 +12,23 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
+  // 4. Externalize Tauri plugins for cross-platform Docker builds
+  //    (npm install on Linux doesn't pull macOS/Windows-native plugin binaries)
+  build: {
+    rollupOptions: {
+      external: [
+        "@tauri-apps/plugin-notification",
+        "@tauri-apps/plugin-screenshots",
+        "@tauri-apps/plugin-global-shortcut",
+        "@tauri-apps/plugin-autostart",
+        "@tauri-apps/plugin-clipboard",
+        "@tauri-apps/plugin-updater",
+        "@tauri-apps/plugin-dialog",
+        "@tauri-apps/api/core",
+        "@tauri-apps/api/event",
+      ],
+    },
+  },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,

@@ -369,6 +369,31 @@ async fn list_personas() -> Result<Value, String> {
     ipc_send_recv(&IpcRequest { cmd: "list_personas".into(), messages: None, mode: None, model: None, session_id: None }).await
 }
 #[tauri::command]
+async fn list_local_models() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "list_local_models".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+#[tauri::command]
+async fn chat_local(app_handle: tauri::AppHandle, message: String, model: Option<String>) -> Result<i32, String> {
+    let socket = daemon_socket_path();
+    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running: {}", e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let payload = serde_json::json!({"cmd":"chat_local","messages":[{"role":"user","content":message}],"model":model.unwrap_or_else(|| "qwen3:1.7b".into())});
+    writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    let mut count = 0;
+    loop {
+        let mut line = String::new();
+        buf_reader.read_line(&mut line).await.map_err(|e| format!("read: {}", e))?;
+        if line.is_empty() { break; }
+        let event: IpcEvent = serde_json::from_str(&line).map_err(|e| format!("JSON: {}", e))?;
+        let done = event.event == "done";
+        app_handle.emit("chat-event", &event).map_err(|e| format!("emit: {}", e))?;
+        count += 1;
+        if done { break; }
+    }
+    Ok(count)
+}
+#[tauri::command]
 async fn list_models() -> Result<Value, String> {
     ipc_send_recv(&IpcRequest { cmd: "list_models".into(), messages: None, mode: None, model: None, session_id: None }).await
 }
@@ -537,7 +562,7 @@ pub fn run() {
             Ok(())
         })
         .manage(PermissionState { pending: Mutex::new(HashMap::new()) })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

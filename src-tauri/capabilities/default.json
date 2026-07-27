@@ -9,6 +9,9 @@
     "notification:default",
     "notification:allow-notify",
     "notification:allow-request-permission",
-    "notification:allow-is-permission-granted"
+    "notification:allow-is-permission-granted",
+    "screenshots:default",
+    "screenshots:allow-get-monitor-screenshot",
+    "screenshots:allow-get-screenshotable-monitors"
   ]
 }

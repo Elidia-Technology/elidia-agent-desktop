@@ -48,6 +48,8 @@ function App() {
   const [showWf, setShowWf] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,6 +143,36 @@ function App() {
     setDragOver(true);
   }
   function onDragLeave() { setDragOver(false); }
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { setInput("[Voice dictation not supported in this webview]"); return; }
+    const rec = new SpeechRecognition();
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput((prev) => prev + (prev ? " " : "") + transcript);
+      setListening(false);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  }
+
+  async function captureScreen() {
+    try {
+      const path = await invoke<string>("take_screenshot");
+      setInput((prev) => prev + (prev ? " " : "") + `[Screenshot: ${path}]`);
+    } catch (e) { setInput(`[Screenshot failed: ${e}]`); }
+  }
+
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
@@ -241,6 +273,13 @@ function App() {
           placeholder={daemonRunning ? "Send a message…" : "Daemon not running — start with 'elidia daemon start' first"}
           disabled={!daemonRunning || sending}
         />
+        <button type="button" className={`composer-icon ${listening ? "active" : ""}`}
+          onClick={toggleVoice} title={listening ? "Stop listening" : "Voice input"}>
+          {listening ? "⏹" : "🎤"}
+        </button>
+        <button type="button" className="composer-icon" onClick={captureScreen} title="Capture screen">
+          📸
+        </button>
         <button type="submit" disabled={!daemonRunning || sending || !input.trim()}>
           Send
         </button>

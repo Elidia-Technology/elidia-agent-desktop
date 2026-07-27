@@ -369,11 +369,22 @@ async fn start_research(app_handle: tauri::AppHandle, question: String) -> Resul
     Ok(count)
 }
 
-// Screen capture: tauri-plugin-screenshots v2.2.0 exists on crates.io but
-// has no npm/JS wrapper yet (npm 404 as of 2026-07-27). The Rust-side API
-// is `app.screenshot()` — trivially wrappable once the npm package ships
-// or once we write a thin invoke() wrapper ourselves. Not a code gap, a
-// packaging timing issue. Tracked for Phase 4/CI.
+// Screen capture: tauri-plugin-screenshots v2.2.0. No npm wrapper needed —
+// the take_screenshot Tauri command calls the Rust API directly.
+// Voice dictation: uses the Web Speech API built into the Tauri webview
+// (no plugin needed) — see App.tsx voice button.
+
+#[tauri::command]
+async fn take_screenshot(app: tauri::AppHandle) -> Result<String, String> {
+    let monitors = tauri_plugin_screenshots::get_screenshotable_monitors()
+        .await
+        .map_err(|e| format!("monitors: {}", e))?;
+    let primary = monitors.into_iter().next().ok_or("no monitors found")?;
+    let path = tauri_plugin_screenshots::get_monitor_screenshot(app, primary.id)
+        .await
+        .map_err(|e| format!("capture: {}", e))?;
+    Ok(path.to_string_lossy().to_string())
+}
 
 #[tauri::command]
 async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
@@ -391,6 +402,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_screenshots::init())
         .setup(|app| {
             // ---- tray icon with menu ----
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -430,7 +442,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

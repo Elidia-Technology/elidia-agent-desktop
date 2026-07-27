@@ -22,11 +22,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
-# Screen capture: tauri-plugin-screenshots v2.2.0 exists on crates.io but
-# has no npm/JS wrapper yet (npm 404 as of 2026-07-27). Voice dictation
-# has no Tauri plugin — needs OS-native APIs (Speech framework on macOS,
-# Windows Speech API). Both scoped for Phase 4 / CI, not blocked — just
-# packaging/platform timing.
+tauri-plugin-screenshots = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["net", "io-util", "sync", "macros", "rt", "time"] }

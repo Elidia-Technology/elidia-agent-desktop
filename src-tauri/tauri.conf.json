@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Elidia Agent Desktop",
+  "productName": "Elidia Agent",
   "version": "0.1.0",
   "identifier": "aiutils.io.sa.app.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Elidia Agent Desktop",
+        "title": "Elidia Agent",
         "width": 900,
         "height": 700
       }

@@ -312,6 +312,11 @@ async fn get_balance() -> Result<Value, String> {
     ipc_send_recv(&IpcRequest { cmd: "get_balance".into(), messages: None, mode: None, model: None, session_id: None }).await
 }
 #[tauri::command]
+async fn get_session_messages(session_id: String) -> Result<Value, String> {
+    ipc_with_body(serde_json::json!({"cmd":"get_session_messages","session_id":session_id})).await
+}
+
+#[tauri::command]
 async fn list_mcp_servers() -> Result<Value, String> {
     ipc_send_recv(&IpcRequest { cmd: "list_mcp_servers".into(), messages: None, mode: None, model: None, session_id: None }).await
 }
@@ -442,7 +447,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

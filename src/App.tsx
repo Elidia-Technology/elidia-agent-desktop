@@ -8,6 +8,7 @@ import AuditLog from "./AuditLog";
 import WorkflowBuilder from "./WorkflowBuilder";
 import InfoPanel from "./InfoPanel";
 import AdvancedPanel from "./AdvancedPanel";
+import SessionSidebar from "./SessionSidebar";
 import "./App.css";
 
 interface ChatEvent {
@@ -48,9 +49,14 @@ function App() {
   const [showWf, setShowWf] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  function handleLoadMessages(msgs: {role:string;text:string}[]) {
+    setMessages(msgs.map((m) => m.role === "user" ? { role: "user" as const, text: m.text } : { role: "assistant" as const, text: m.text }));
+  }
 
   useEffect(() => {
     checkDaemon();
@@ -186,6 +192,7 @@ function App() {
     <main className="chat-app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragOver && <div className="drop-overlay">Drop files to attach</div>}
       <div className="app-body">
+        {showSidebar && <SessionSidebar onLoadMessages={handleLoadMessages} />}
         <div className="chat-column">
           <header className="chat-header">
         <div className="header-left">
@@ -219,6 +226,9 @@ function App() {
           </button>
           <button className="refresh-btn" onClick={() => setShowAdvanced(!showAdvanced)} title="Research & Creative">
             {showAdvanced ? "✕" : "🔬"}
+          </button>
+          <button className="refresh-btn" onClick={() => setShowSidebar(!showSidebar)} title="Toggle sidebar">
+            {showSidebar ? "☰" : "☰"}
           </button>
           <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>

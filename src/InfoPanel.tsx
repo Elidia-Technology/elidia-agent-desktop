@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 interface MemoryEntry { key: string; content: string; tier: string; }
 interface PersonaEntry { slug: string; name?: string; description?: string; }
-type Section = "memory" | "mcp" | "personas" | "models" | "trust" | "balance";
+type Section = "memory" | "mcp" | "personas" | "models" | "permissions" | "trust" | "balance";
 
 export default function InfoPanel() {
   const [section, setSection] = useState<Section>("memory");
@@ -25,6 +25,12 @@ export default function InfoPanel() {
           setData(await invoke("list_personas")); break;
         case "models":
           setData(await invoke("list_models")); break;
+        case "permissions":
+          setData({
+            trust: await invoke("get_trust_stats").catch(() => null),
+            audit: await invoke("get_audit_log", { limit: 20 }).catch(() => null),
+          });
+          break;
         case "trust":
           setData(await invoke("get_trust_stats")); break;
         case "balance":
@@ -47,7 +53,8 @@ export default function InfoPanel() {
     { key: "mcp", label: "MCP", emoji: "🔌" },
     { key: "personas", label: "Personas", emoji: "🎭" },
     { key: "models", label: "Models", emoji: "🤖" },
-    { key: "trust", label: "Trust", emoji: "🛡" },
+    { key: "permissions", label: "Permissions", emoji: "🛡" },
+    { key: "trust", label: "Trust", emoji: "✅" },
     { key: "balance", label: "Balance", emoji: "💰" },
   ];
 
@@ -124,6 +131,25 @@ export default function InfoPanel() {
           </div>
         )}
 
+        {section === "permissions" && (
+          <div>
+            <div className="dash-section-title" style={{marginTop:0}}>Promoted Actions</div>
+            {data?.trust?.promoted_actions?.length > 0 ? (
+              data.trust.promoted_actions.map((a: string, i: number) => (
+                <div key={i} className="info-item"><span className="info-key">✅ {a}</span></div>
+              ))
+            ) : <p className="info-empty">{data?.trust?.note || "No promoted actions yet."}</p>}
+            <div className="dash-section-title" style={{marginTop:12}}>Recent Audit Log</div>
+            {data?.audit?.entries?.length > 0 ? (
+              data.audit.entries.slice(0, 15).map((e: any, i: number) => (
+                <div key={i} className={`audit-entry ${e.approved ? "approved" : "denied"}`}>
+                  <div className="audit-action">{e.action || "?"}</div>
+                  <div className="audit-meta">{e.approved ? "✓" : "✗"} via {e.method || "?"}</div>
+                </div>
+              ))
+            ) : <p className="info-empty">No audit entries yet.</p>}
+          </div>
+        )}
         {section === "trust" && (
           <div>
             {data?.promoted_actions?.length > 0 ? (

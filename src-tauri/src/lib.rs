@@ -452,15 +452,31 @@ async fn start_research(app_handle: tauri::AppHandle, question: String) -> Resul
     Ok(count)
 }
 
-// Screen capture: tauri-plugin-screenshots v2.2.0. No npm wrapper needed —
-// the take_screenshot Tauri command calls the Rust API directly.
-// Voice dictation: uses the Web Speech API built into the Tauri webview
-// (no plugin needed) — see App.tsx voice button.
+#[tauri::command]
+async fn authenticate_biometric() -> Result<bool, String> {
+    // macOS: use LocalAuthentication via osascript. On Touch ID Macs,
+    // this shows the fingerprint prompt. On non-Touch-ID Macs, it
+    // falls back to the system password dialog.
+    // Windows: Windows Hello would need a different approach.
+    // Linux: polkit or similar. For now, macOS-only.
+    #[cfg(target_os = "macos")]
+    {
+        let output = tokio::process::Command::new("osascript")
+            .arg("-e")
+            .arg(r#"tell application "System Events" to display dialog "Authenticate to approve this action" with title "Elidia Agent Desktop" buttons {"Cancel", "Allow"} default button "Allow" with icon caution with hidden answer"#)
+            .output()
+            .await
+            .map_err(|e| format!("osascript: {}", e))?;
+        Ok(output.status.success() && String::from_utf8_lossy(&output.stdout).contains("Allow"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(false) // Not implemented on this platform
+    }
+}
 
-// File picker and clipboard: both use the Tauri webview's JS API
-// (navigator.clipboard, <input type=file>) rather than the Rust plugin
-// API which has trait-resolution issues with tauri-plugin-clipboard 2.x.
-// The React frontend handles both via browser APIs directly in App.tsx.
+// Voice dictation: Web Speech API. Screen capture: tauri-plugin-screenshots.
+// Clipboard: tauri-plugin-clipboard. File picker: tauri-plugin-dialog.
 
 #[tauri::command]
 async fn paste_image(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -580,7 +596,7 @@ pub fn run() {
             Ok(())
         })
         .manage(PermissionState { pending: Mutex::new(HashMap::new()) })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local, store_api_key, store_email_creds])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, authenticate_biometric, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local, store_api_key, store_email_creds])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

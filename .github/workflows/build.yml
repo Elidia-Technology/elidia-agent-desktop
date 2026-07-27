@@ -15,11 +15,21 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Apple-Actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       - run: npm ci
       - run: npm run tauri build
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_NOTARY_TOOL: notarytool
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      - run: xcrun notarytool submit src-tauri/target/release/bundle/dmg/*.dmg --apple-id ${{ secrets.APPLE_ID }} --team-id ${{ secrets.APPLE_TEAM_ID }} --password ${{ secrets.APPLE_APP_PASSWORD }} --wait
       - uses: actions/upload-artifact@v4
         with:
-          name: elidia-agent-desktop-macos
+          name: elidia-agent-desktop-macos-signed
           path: src-tauri/target/release/bundle/dmg/*.dmg
 
   # ---- Linux (AppImage + deb) ----

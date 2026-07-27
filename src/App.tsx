@@ -6,6 +6,7 @@ import RagManager from "./RagManager";
 import DaemonDashboard from "./DaemonDashboard";
 import AuditLog from "./AuditLog";
 import WorkflowBuilder from "./WorkflowBuilder";
+import InfoPanel from "./InfoPanel";
 import "./App.css";
 
 interface ChatEvent {
@@ -44,6 +45,7 @@ function App() {
   const [showDash, setShowDash] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [showWf, setShowWf] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -178,6 +180,9 @@ function App() {
           <button className="refresh-btn" onClick={() => setShowWf(!showWf)} title="Workflow Builder">
             {showWf ? "✕" : "⚡"}
           </button>
+          <button className="refresh-btn" onClick={() => setShowInfo(!showInfo)} title="Agent Info">
+            {showInfo ? "✕" : "ℹ"}
+          </button>
           <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>
       </header>
@@ -240,6 +245,7 @@ function App() {
         {showDash && <DaemonDashboard />}
         {showAudit && <AuditLog />}
         {showWf && <WorkflowBuilder />}
+        {showInfo && <InfoPanel />}
       </div>
     </main>
   );

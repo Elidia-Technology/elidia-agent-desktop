@@ -308,6 +308,46 @@ async fn workflow_run(yaml: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
+async fn get_balance() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "get_balance".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+#[tauri::command]
+async fn list_mcp_servers() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "list_mcp_servers".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+#[tauri::command]
+async fn list_personas() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "list_personas".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+#[tauri::command]
+async fn list_models() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "list_models".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+#[tauri::command]
+async fn search_memory(query: Option<String>, limit: Option<i32>) -> Result<Value, String> {
+    ipc_with_body(serde_json::json!({"cmd":"search_memory","query":query.unwrap_or_default(),"limit":limit.unwrap_or(20)})).await
+}
+#[tauri::command]
+async fn forget_memory(key: String) -> Result<Value, String> {
+    ipc_with_body(serde_json::json!({"cmd":"forget_memory","key":key})).await
+}
+#[tauri::command]
+async fn get_trust_stats() -> Result<Value, String> {
+    ipc_send_recv(&IpcRequest { cmd: "get_trust_stats".into(), messages: None, mode: None, model: None, session_id: None }).await
+}
+
+async fn ipc_with_body(body: Value) -> Result<Value, String> {
+    let socket = daemon_socket_path();
+    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running: {}", e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    writer.write_all(format!("{}\n", body).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    let mut line = String::new();
+    buf_reader.read_line(&mut line).await.map_err(|e| format!("read: {}", e))?;
+    serde_json::from_str(&line).map_err(|e| format!("JSON: {}", e))
+}
+
+#[tauri::command]
 async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
     use tauri_plugin_notification::NotificationExt;
     app.notification()
@@ -362,7 +402,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

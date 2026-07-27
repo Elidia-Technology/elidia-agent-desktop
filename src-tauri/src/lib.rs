@@ -429,6 +429,20 @@ async fn start_research(app_handle: tauri::AppHandle, question: String) -> Resul
 // The React frontend handles both via browser APIs directly in App.tsx.
 
 #[tauri::command]
+async fn paste_image(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let clipboard = app.state::<tauri_plugin_clipboard::Clipboard>();
+    if !clipboard.has_image().unwrap_or(false) {
+        return Ok(None);
+    }
+    let bytes = clipboard.read_image_binary().map_err(|e| format!("read: {}", e))?;
+    let dir = std::env::temp_dir().join("elidia-clipboard");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
+    let path = dir.join("pasted.png");
+    std::fs::write(&path, &bytes).map_err(|e| format!("write: {}", e))?;
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
 async fn take_screenshot(app: tauri::AppHandle) -> Result<String, String> {
     let monitors = tauri_plugin_screenshots::get_screenshotable_monitors()
         .await
@@ -459,6 +473,7 @@ pub fn run() {
         .plugin(tauri_plugin_screenshots::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_clipboard::init())
         .setup(|app| {
             // ---- tray icon with menu ----
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -510,7 +525,7 @@ pub fn run() {
             Ok(())
         })
         .manage(PermissionState { pending: Mutex::new(HashMap::new()) })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, respond_permission, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

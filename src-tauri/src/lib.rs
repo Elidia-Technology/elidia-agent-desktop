@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::panic;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Emitter;
@@ -500,9 +501,18 @@ async fn notify(app: tauri::AppHandle, title: String, body: String) -> Result<()
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Crash reporting — writes panic info to ~/.elidia/crash.log
+    let crash_path = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp")).join(".elidia/crash.log");
+    let _ = std::fs::create_dir_all(crash_path.parent().unwrap());
+    panic::set_hook(Box::new(move |info| {
+        let msg = format!("{} {:?}\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), info);
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&crash_path).map(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
+    }));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_screenshots::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))

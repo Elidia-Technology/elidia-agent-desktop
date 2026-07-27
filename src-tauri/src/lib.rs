@@ -474,6 +474,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_clipboard::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcut("CmdOrCtrl+Shift+E")
+                .expect("valid shortcut")
+                .with_handler(|app, _shortcut, _event| {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             // ---- tray icon with menu ----
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;

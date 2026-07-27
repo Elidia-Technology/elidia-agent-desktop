@@ -41,7 +41,7 @@ fn daemon_socket_path() -> PathBuf {
     let resolved = std::fs::canonicalize(&elidia_home).unwrap_or(elidia_home);
     let hash = Sha256::digest(resolved.to_string_lossy().as_bytes());
     let hash_hex = format!("{:x}", hash);
-    std::env::temp_dir().join(format!("elidia-daemon-{}", &hash_hex[..12]))
+    std::env::temp_dir().join(format!("elidia-daemon-{}.sock", &hash_hex[..12]))
 }
 
 // ---- JSON types (mirrors Python's daemon IPC protocol) ----
@@ -381,6 +381,31 @@ async fn store_email_creds(address: String, password: String, smtp_host: String,
 async fn list_local_models() -> Result<Value, String> {
     ipc_send_recv(&IpcRequest { cmd: "list_local_models".into(), messages: None, mode: None, model: None, session_id: None }).await
 }
+// Not a #[tauri::command] — called directly from main.rs for headless mode.
+// Also usable via invoke() since Tauri auto-registers pub fns with compatible sigs.
+pub async fn headless_chat(message: String, mode: Option<String>) -> Result<String, String> {
+    let socket = daemon_socket_path();
+    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running ({}): {}", socket.display(), e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let payload = serde_json::json!({"cmd":"chat","messages":[{"role":"user","content":message}],"mode":mode.unwrap_or_else(||"chat".into())});
+    writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    let mut result = String::new();
+    loop {
+        let mut line = String::new();
+        buf_reader.read_line(&mut line).await.map_err(|e| format!("read: {}", e))?;
+        if line.is_empty() { break; }
+        let event: IpcEvent = serde_json::from_str(&line).map_err(|e| format!("JSON: {}", e))?;
+        match event.event.as_str() {
+            "content" => { if let Some(s) = event.data.as_str() { result.push_str(s); } }
+            "error" => return Err(event.data.as_str().unwrap_or("unknown").into()),
+            "done" => break,
+            _ => {}
+        }
+    }
+    Ok(result)
+}
+
 #[tauri::command]
 async fn chat_local(app_handle: tauri::AppHandle, message: String, model: Option<String>) -> Result<i32, String> {
     let socket = daemon_socket_path();

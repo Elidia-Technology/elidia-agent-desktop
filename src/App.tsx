@@ -5,6 +5,7 @@ import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notif
 import RagManager from "./RagManager";
 import DaemonDashboard from "./DaemonDashboard";
 import AuditLog from "./AuditLog";
+import WorkflowBuilder from "./WorkflowBuilder";
 import "./App.css";
 
 interface ChatEvent {
@@ -42,6 +43,7 @@ function App() {
   const [showRag, setShowRag] = useState(false);
   const [showDash, setShowDash] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showWf, setShowWf] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -173,6 +175,9 @@ function App() {
           <button className="refresh-btn" onClick={() => setShowAudit(!showAudit)} title="Audit Log">
             {showAudit ? "✕" : "🔍"}
           </button>
+          <button className="refresh-btn" onClick={() => setShowWf(!showWf)} title="Workflow Builder">
+            {showWf ? "✕" : "⚡"}
+          </button>
           <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>
       </header>
@@ -234,6 +239,7 @@ function App() {
         {showRag && <RagManager />}
         {showDash && <DaemonDashboard />}
         {showAudit && <AuditLog />}
+        {showWf && <WorkflowBuilder />}
       </div>
     </main>
   );

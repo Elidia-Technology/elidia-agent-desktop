@@ -1,13 +1,25 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
+use tokio::sync::{oneshot, Mutex};
+
+/// Shared state for the permission IPC round-trip (AIUT-2148).
+/// When the daemon blocks on a permission check, the Desktop's
+/// send_chat poller detects the pending request, stores a oneshot
+/// sender here, and waits. The respond_permission command looks
+/// up the sender and resolves it with the user's choice.
+struct PermissionState {
+    pending: Mutex<HashMap<String, oneshot::Sender<bool>>>,
+}
 
 // ---- daemon socket discovery ----
 
@@ -196,28 +208,60 @@ async fn send_chat(
         .await
         .map_err(|e| format!("write: {}", e))?;
 
+    let perm_state: tauri::State<'_, PermissionState> = app_handle.state();
     let mut count = 0;
     loop {
         let mut line = String::new();
-        buf_reader
-            .read_line(&mut line)
-            .await
-            .map_err(|e| format!("read: {}", e))?;
-        if line.is_empty() {
-            break;
-        }
-        let event: IpcEvent = serde_json::from_str(&line)
-            .map_err(|e| format!("JSON decode: {} — raw: {}", e, line))?;
-        let done = event.event == "done";
-        app_handle
-            .emit("chat-event", &event)
-            .map_err(|e| format!("emit: {}", e))?;
-        count += 1;
-        if done {
-            break;
+        match tokio::time::timeout(tokio::time::Duration::from_secs(1), buf_reader.read_line(&mut line)).await {
+            Ok(Ok(0)) => break,
+            Ok(Ok(_)) => {
+                let event: IpcEvent = serde_json::from_str(&line)
+                    .map_err(|e| format!("JSON decode: {} — raw: {}", e, line))?;
+                let done = event.event == "done";
+                app_handle.emit("chat-event", &event).map_err(|e| format!("emit: {}", e))?;
+                count += 1;
+                if done { break; }
+            }
+            Ok(Err(e)) => return Err(format!("read: {}", e)),
+            Err(_) => {
+                if let Ok(Some(req_id)) = check_pending_permissions(&socket).await {
+                    let (tx, rx) = oneshot::channel();
+                    perm_state.pending.lock().await.insert(req_id.clone(), tx);
+                    app_handle.emit("permission-request", serde_json::json!({"id": req_id}))
+                        .map_err(|e| format!("emit: {}", e))?;
+                    match rx.await {
+                        Ok(approved) => {
+                            ipc_with_body(serde_json::json!({"cmd":"permission_response","id":req_id,"approved":approved})).await?;
+                        }
+                        Err(_) => return Err("Permission request cancelled".into()),
+                    }
+                }
+            }
         }
     }
     Ok(count)
+}
+
+#[tauri::command]
+async fn respond_permission(state: tauri::State<'_, PermissionState>, id: String, approved: bool) -> Result<(), String> {
+    let mut pending = state.pending.lock().await;
+    if let Some(tx) = pending.remove(&id) {
+        tx.send(approved).map_err(|_| "already resolved".into())
+    } else {
+        Err(format!("no pending permission with id={}", id))
+    }
+}
+
+async fn check_pending_permissions(socket: &PathBuf) -> Result<Option<String>, String> {
+    let stream = UnixStream::connect(socket).await.map_err(|e| format!("poll: {}", e))?;
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    writer.write_all(b"{\"cmd\":\"pending_permissions\"}\n").await.map_err(|e| format!("w: {}", e))?;
+    let mut line = String::new();
+    buf_reader.read_line(&mut line).await.map_err(|e| format!("r: {}", e))?;
+    let resp: Value = serde_json::from_str(&line).map_err(|e| format!("json: {}", e))?;
+    let pending: Vec<Value> = resp.get("pending").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    Ok(pending.first().and_then(|p| p.get("id")).and_then(|v| v.as_str()).map(String::from))
 }
 
 #[tauri::command]
@@ -453,7 +497,8 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
+        .manage(PermissionState { pending: Mutex::new(HashMap::new()) })
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, respond_permission, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_models, search_memory, forget_memory, get_trust_stats, start_research])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

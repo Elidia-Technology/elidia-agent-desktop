@@ -51,6 +51,7 @@ function App() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [listening, setListening] = useState(false);
+  const [permRequest, setPermRequest] = useState<{id:string;description?:string} | null>(null);
   const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +62,9 @@ function App() {
   useEffect(() => {
     checkDaemon();
     requestNotificationPermission();
+    const unlisten2 = listen<{id:string}>("permission-request", (event) => {
+      setPermRequest({ id: event.payload.id });
+    });
     const unlisten = listen<ChatEvent>("chat-event", (event) => {
       const { event: kind, data } = event.payload;
       switch (kind) {
@@ -97,6 +101,7 @@ function App() {
     });
     return () => {
       unlisten.then((fn) => fn());
+      unlisten2.then((fn) => fn());
     };
   }, []);
 
@@ -177,6 +182,12 @@ function App() {
       const path = await invoke<string>("take_screenshot");
       setInput((prev) => prev + (prev ? " " : "") + `[Screenshot: ${path}]`);
     } catch (e) { setInput(`[Screenshot failed: ${e}]`); }
+  }
+
+  async function respondPermission(approved: boolean) {
+    if (!permRequest) return;
+    try { await invoke("respond_permission", { id: permRequest.id, approved }); } catch {}
+    setPermRequest(null);
   }
 
   function onDrop(e: React.DragEvent) {
@@ -302,6 +313,18 @@ function App() {
         {showInfo && <InfoPanel />}
         {showAdvanced && <AdvancedPanel />}
       </div>
+      {permRequest && (
+        <div className="perm-overlay">
+          <div className="perm-modal">
+            <p className="perm-text">Allow this action?</p>
+            <p className="perm-id">Request: {permRequest.id}</p>
+            <div className="perm-buttons">
+              <button className="perm-deny" onClick={() => respondPermission(false)}>Deny</button>
+              <button className="perm-allow" onClick={() => respondPermission(true)}>Allow</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

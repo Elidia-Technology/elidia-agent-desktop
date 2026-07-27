@@ -379,6 +379,11 @@ async fn start_research(app_handle: tauri::AppHandle, question: String) -> Resul
 // Voice dictation: uses the Web Speech API built into the Tauri webview
 // (no plugin needed) — see App.tsx voice button.
 
+// File picker and clipboard: both use the Tauri webview's JS API
+// (navigator.clipboard, <input type=file>) rather than the Rust plugin
+// API which has trait-resolution issues with tauri-plugin-clipboard 2.x.
+// The React frontend handles both via browser APIs directly in App.tsx.
+
 #[tauri::command]
 async fn take_screenshot(app: tauri::AppHandle) -> Result<String, String> {
     let monitors = tauri_plugin_screenshots::get_screenshotable_monitors()
@@ -408,6 +413,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_screenshots::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // ---- tray icon with menu ----
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;

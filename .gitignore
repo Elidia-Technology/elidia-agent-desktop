@@ -37,3 +37,7 @@ CLAUDE.md
 *.pem
 *.p12
 *.keystore
+linux-deb/
+linux-rpm/
+linux-appimage/
+dist/

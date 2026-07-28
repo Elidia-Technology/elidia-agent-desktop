@@ -197,3 +197,13 @@
 .onboard-buttons { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
 .onboard-btn { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
 .onboard-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+.settings-panel{padding:16px;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;max-height:100vh;min-width:260px}
+.settings-tabs{display:flex;gap:4px;margin:12px 0}
+.settings-tab{background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:11px;font-weight:600;text-transform:uppercase;cursor:pointer;font-family:var(--font-mono)}
+.settings-tab.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.settings-hint{font-size:11px;color:var(--text-dim);margin-bottom:12px;font-style:italic}
+.settings-item{display:flex;justify-content:space-between;padding:8px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px}
+.settings-key{font-family:var(--font-mono);color:var(--text);font-weight:600}
+.settings-val{color:var(--text-dim)}
+.settings-empty{font-size:12px;color:var(--text-dim);font-style:italic;padding:8px 0}
+.settings-big{font-family:var(--font-mono);font-size:28px;font-weight:700;color:var(--accent);text-align:center;padding:20px 0}

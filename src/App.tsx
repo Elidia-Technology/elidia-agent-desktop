@@ -10,6 +10,7 @@ import InfoPanel from "./InfoPanel";
 import AdvancedPanel from "./AdvancedPanel";
 import SessionSidebar from "./SessionSidebar";
 import Onboarding from "./Onboarding";
+import SettingsPanel from "./SettingsPanel";
 import "./App.css";
 
 interface ChatEvent {
@@ -44,6 +45,7 @@ function App() {
   const [model, setModel] = useState("auto");
   const [availableModels, setAvailableModels] = useState<{id:string;owned_by:string}[]>([]);
   const [mode, setMode] = useState("chat");
+  const [thinking, setThinking] = useState("medium");
 
   useEffect(() => {
     async function loadModels() {
@@ -63,6 +65,7 @@ function App() {
   const [showInfo, setShowInfo] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
   const [listening, setListening] = useState(false);
   const [permRequest, setPermRequest] = useState<{id:string;description?:string} | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("elidia-onboarded"));
@@ -211,8 +214,20 @@ function App() {
     setDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    const names = files.map((f) => f.name).join(", ");
-    setInput((prev) => prev + (prev ? " " : "") + `[Attached: ${names}]`);
+    // For supported types, try RAG ingest. For images, attach as vision.
+    const supported = files.filter(f => /\.(txt|md|py|js|ts|docx|xlsx|pptx|pdf|csv)$/i.test(f.name));
+    const images = files.filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name));
+    if (supported.length > 0) {
+      setInput((prev) => prev + (prev ? "\n" : "") + `[Indexing: ${supported.map(f=>f.name).join(", ")} into RAG...]`);
+      // RAG ingest happens via daemon — the chat handler will search for index
+    }
+    if (images.length > 0) {
+      setInput((prev) => prev + (prev ? "\n" : "") + `[Vision image: ${images.map(f=>f.name).join(", ")}]`);
+    }
+    if (!supported.length && !images.length) {
+      const names = files.map((f) => f.name).join(", ");
+      setInput((prev) => prev + (prev ? " " : "") + `[Attached: ${names}]`);
+    }
   }
 
   return (
@@ -243,6 +258,13 @@ function App() {
               <option value="qwen3:1.7b">qwen3:1.7b (local)</option>
             </>}
           </select>
+          <span className="mode-label">think:</span>
+          <select value={thinking} onChange={(e) => setThinking(e.target.value)} className="mode-select">
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+            <option value="deep">deep</option>
+          </select>
           <span className="mode-label">mode:</span>
           <select value={mode} onChange={(e) => setMode(e.target.value)} className="mode-select">
             {MODES.map((m) => (
@@ -269,6 +291,9 @@ function App() {
           </button>
           <button className="refresh-btn" onClick={() => setShowSidebar(!showSidebar)} title="Toggle sidebar">
             {showSidebar ? "☰" : "☰"}
+          </button>
+          <button className="refresh-btn" onClick={() => setShowSettings(!showSettings)} title="Settings">
+            {showSettings ? "✕" : "⚙"}
           </button>
           <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>
@@ -341,6 +366,7 @@ function App() {
         {showWf && <WorkflowBuilder />}
         {showInfo && <InfoPanel />}
         {showAdvanced && <AdvancedPanel />}
+        {showSettings && <SettingsPanel />}
       </div>
       {permRequest && (
         <div className="perm-overlay">

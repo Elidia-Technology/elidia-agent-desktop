@@ -41,6 +41,7 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [model, setModel] = useState("auto");
   const [mode, setMode] = useState("chat");
   const [dragOver, setDragOver] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
@@ -145,7 +146,7 @@ function App() {
     setSending(true);
     setMessages((prev) => [...prev, { role: "user", text }]);
     try {
-      await invoke("send_chat", { message: text, mode, model: null });
+      await invoke("send_chat", { message: text, mode, model: model === "auto" ? null : model });
       sendNotification("Elidia", "Response ready");
     } catch (e) {
       setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]);
@@ -219,6 +220,16 @@ function App() {
           </span>
         </div>
         <div className="header-right">
+          <span className="mode-label">model:</span>
+          <select value={model} onChange={(e) => setModel(e.target.value)} className="mode-select">
+            <option value="auto">auto</option>
+            <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+            <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+            <option value="claude-opus-4-8">claude-opus-4-8</option>
+            <option value="gpt-4o">gpt-4o</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            <option value="qwen3:1.7b">qwen3:1.7b (local)</option>
+          </select>
           <span className="mode-label">mode:</span>
           <select value={mode} onChange={(e) => setMode(e.target.value)} className="mode-select">
             {MODES.map((m) => (

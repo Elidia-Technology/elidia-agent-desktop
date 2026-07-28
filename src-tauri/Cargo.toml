@@ -1,6 +1,6 @@
 [package]
 name = "elidia-agent-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Elidia Agent — native AI agent desktop app (macOS, Linux, Windows)"
 authors = ["Elidia Technology Pvt Ltd, New Delhi, India"]
 license = "LicenseRef-Proprietary"

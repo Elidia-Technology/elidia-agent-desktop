@@ -42,7 +42,18 @@ function App() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [model, setModel] = useState("auto");
+  const [availableModels, setAvailableModels] = useState<{id:string;owned_by:string}[]>([]);
   const [mode, setMode] = useState("chat");
+
+  useEffect(() => {
+    async function loadModels() {
+      try {
+        const resp = await invoke<{ok:boolean;models:Array<{id:string;owned_by:string}>}>("list_available_models");
+        if (resp.ok && resp.models) setAvailableModels(resp.models);
+      } catch { /* daemon not running yet */ }
+    }
+    loadModels();
+  }, [daemonRunning]);
   const [dragOver, setDragOver] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [showRag, setShowRag] = useState(false);
@@ -222,13 +233,15 @@ function App() {
         <div className="header-right">
           <span className="mode-label">model:</span>
           <select value={model} onChange={(e) => setModel(e.target.value)} className="mode-select">
-            <option value="auto">auto</option>
-            <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-            <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-            <option value="claude-opus-4-8">claude-opus-4-8</option>
-            <option value="gpt-4o">gpt-4o</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-            <option value="qwen3:1.7b">qwen3:1.7b (local)</option>
+            <option value="auto">auto (system picks best)</option>
+            {availableModels.length > 0 ? availableModels.map(m => (
+              <option key={m.id} value={m.id}>{m.id} @ {m.owned_by}</option>
+            )) : <>
+              <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+              <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="qwen3:1.7b">qwen3:1.7b (local)</option>
+            </>}
           </select>
           <span className="mode-label">mode:</span>
           <select value={mode} onChange={(e) => setMode(e.target.value)} className="mode-select">

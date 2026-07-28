@@ -52,7 +52,11 @@ function App() {
   const [permRequest, setPermRequest] = useState<{ id: string; description?: string } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("elidia-onboarded"));
   const recognitionRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Attachments
+  const [attachments, setAttachments] = useState<Array<{name:string;size_formatted:string;path:string;mime_type:string}>>([]);
 
   useEffect(() => { document.documentElement.setAttribute("data-theme", theme); localStorage.setItem("elidia-theme", theme); }, [theme]);
   function toggleTheme() { setTheme((t) => (t === "light" ? "dark" : "light")); }
@@ -118,10 +122,13 @@ function App() {
 
   async function sendMessage() {
     const text = input.trim();
-    if (!text || sending) return;
+    if ((!text && attachments.length === 0) || sending) return;
+    const hasAttachments = attachments.length > 0;
+    const displayText = text + (hasAttachments ? `\n\n[Attached: ${attachments.map(a => a.name).join(", ")}]` : "");
     setInput(""); setSending(true);
-    setMessages((prev) => [...prev, { role: "user", text }]);
-    try { await invoke("send_chat", { message: text, mode, model: model === "auto" ? null : model }); }
+    setMessages((prev) => [...prev, { role: "user", text: displayText }]);
+    setAttachments([]);
+    try { await invoke("send_chat", { message: displayText, mode, model: model === "auto" ? null : model }); }
     catch (e) { setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]); setSending(false); }
   }
 
@@ -149,7 +156,37 @@ function App() {
     e.preventDefault(); setDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    setInput((prev) => prev + (prev ? "\n" : "") + `[Attached: ${files.map((f) => f.name).join(", ")}]`);
+    attachFilesFromDrop(files);
+  }
+
+  async function attachFilesFromDrop(files: FileList | File[]) {
+    const filePaths: string[] = [];
+    for (const f of Array.from(files)) {
+      // For Tauri webview, files may not have a path. Use the file name as reference.
+      if ((f as any).path) { filePaths.push((f as any).path); }
+    }
+    if (filePaths.length === 0) {
+      setInput((prev) => prev + (prev ? "\n" : "") + `[Attached: ${Array.from(files).map(f => f.name).join(", ")}]`);
+      return;
+    }
+    try {
+      const resp = await invoke<{ok:boolean;files:Array<{name:string;size_formatted:string;path:string;mime_type:string}>;error?:string}>("attach_files", { files: filePaths });
+      if (resp.ok && resp.files) {
+        setAttachments((prev) => [...prev, ...resp.files].slice(0, 10));
+      } else if (resp.error) {
+        setInput((prev) => prev + (prev ? "\n" : "") + `[Error: ${resp.error}]`);
+      }
+    } catch {
+      setInput((prev) => prev + (prev ? "\n" : "") + `[Attached: ${Array.from(files).map(f => f.name).join(", ")}]`);
+    }
+  }
+
+  function removeAttachment(idx: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
   }
 
   const ToolbarBtn = ({ icon: Icon, label, onClick, active }: { icon: any; label: string; onClick: () => void; active?: boolean }) => (
@@ -232,7 +269,11 @@ function App() {
         <div className="chat-column">
           {/* Messages */}
           <div className="message-list">
-            {messages.length === 0 && (
+            {/* Hidden file input for picker */}
+            <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.csv,.txt,.md,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.json,.xml,.yaml,.yml,.toml,.py,.js,.ts,.sql,.r,.rb,.go,.rs,.java,.c,.cpp,.h,.css,.scss,.html,.log,.env"
+              onChange={(e) => { if (e.target.files) attachFilesFromDrop(e.target.files); e.target.value = ""; }} />
+            {messages.length === 0 && attachments.length === 0 && (
               <div className="empty-state">
                 <img src="/elidia-icon.png" alt="" className="empty-icon" />
                 <p>Elidia Agent Desktop</p>
@@ -261,6 +302,19 @@ function App() {
             <div ref={endRef} />
           </div>
 
+          {/* Attachment preview */}
+          {attachments.length > 0 && (
+            <div className="attachment-bar">
+              {attachments.map((a, i) => (
+                <span key={i} className="attachment-chip" title={a.path}>
+                  {a.mime_type?.startsWith("image/") ? "🖼" : "📄"} {a.name}
+                  <small>{a.size_formatted}</small>
+                  <button type="button" className="attachment-remove" onClick={() => removeAttachment(i)}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Composer */}
           <form className="composer" onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
             <button type="button" className={`composer-icon ${listening ? "active" : ""}`} onClick={toggleVoice} title={listening ? "Stop" : "Voice Input"}>
@@ -268,6 +322,9 @@ function App() {
             </button>
             <button type="button" className="composer-icon" onClick={captureScreen} title="Screenshot">
               <Camera size={16} />
+            </button>
+            <button type="button" className="composer-icon" onClick={openFilePicker} title="Attach files (max 10)">
+              <Paperclip size={16} />
             </button>
             <input
               className="composer-input"

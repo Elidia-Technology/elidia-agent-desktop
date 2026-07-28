@@ -17,6 +17,11 @@ export default function SessionSidebar({ onLoadMessages }: { onLoadMessages: (ms
     } catch { /* daemon not running */ }
   }
 
+  async function newChat() {
+    setActive("");
+    onLoadMessages([]);
+  }
+
   async function loadSession(sid: string) {
     setActive(sid);
     try {
@@ -31,9 +36,12 @@ export default function SessionSidebar({ onLoadMessages }: { onLoadMessages: (ms
     <div className="sidebar">
       <div className="sidebar-header">
         <span className="sidebar-title">Sessions</span>
-        <button className="sidebar-btn" onClick={refresh}>⟳</button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="sidebar-btn" onClick={newChat} title="New chat">+</button>
+          <button className="sidebar-btn" onClick={refresh} title="Refresh">⟳</button>
+        </div>
       </div>
-      {sessions.length === 0 && <p className="sidebar-empty">No sessions yet.</p>}
+      {sessions.length === 0 && <p className="sidebar-empty">No conversations yet.<br />Start a new chat below.</p>}
       {sessions.map((s) => (
         <div key={s.id} className={`sidebar-item ${s.id === active ? "active" : ""}`} onClick={() => loadSession(s.id)}>
           <div className="sidebar-item-title">{s.title?.slice(0, 50) || "Untitled"}</div>

@@ -7,6 +7,8 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  // Tauri uses custom protocol (tauri://localhost) — assets must be relative, not absolute
+  base: '',
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -15,19 +17,8 @@ export default defineConfig(async () => ({
   // 4. Externalize Tauri plugins for cross-platform Docker builds
   //    (npm install on Linux doesn't pull macOS/Windows-native plugin binaries)
   build: {
-    rollupOptions: {
-      external: [
-        "@tauri-apps/plugin-notification",
-        "@tauri-apps/plugin-screenshots",
-        "@tauri-apps/plugin-global-shortcut",
-        "@tauri-apps/plugin-autostart",
-        "@tauri-apps/plugin-clipboard",
-        "@tauri-apps/plugin-updater",
-        "@tauri-apps/plugin-dialog",
-        "@tauri-apps/api/core",
-        "@tauri-apps/api/event",
-      ],
-    },
+    // Tauri webview can't resolve bare module specifiers in production.
+    // All Tauri APIs and plugins must be bundled.
   },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {

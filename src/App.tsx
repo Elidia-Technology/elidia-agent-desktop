@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
+import {
+  MessageSquare, Code, Search, Brain, Sparkles, FolderOpen,
+  Settings, Sun, Moon, Monitor, Paperclip, Mic, Camera,
+  Sidebar, PanelRight, Plus, RefreshCw, Wrench, Shield,
+  BookOpen, BarChart3, Zap, Activity, Database, Terminal,
+} from "lucide-react";
 import RagManager from "./RagManager";
 import DaemonDashboard from "./DaemonDashboard";
 import AuditLog from "./AuditLog";
@@ -13,21 +19,9 @@ import Onboarding from "./Onboarding";
 import SettingsPanel from "./SettingsPanel";
 import "./App.css";
 
-interface ChatEvent {
-  event: string;
-  data: unknown;
-}
-
-interface ToolCallData {
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-interface ToolResultData {
-  name: string;
-  content: string;
-}
-
+interface ChatEvent { event: string; data: unknown; }
+interface ToolCallData { name: string; arguments: Record<string, unknown>; }
+interface ToolResultData { name: string; content: string; }
 type Message =
   | { role: "user"; text: string }
   | { role: "assistant"; text: string }
@@ -38,345 +32,283 @@ type Message =
 const MODES = ["chat", "code", "research", "think", "create"];
 
 function App() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => localStorage.getItem("elidia-theme") as "light" | "dark" || "light");
   const [daemonRunning, setDaemonRunning] = useState<boolean | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [model, setModel] = useState("auto");
-  const [availableModels, setAvailableModels] = useState<{id:string;owned_by:string}[]>([]);
+  const [availableModels, setAvailableModels] = useState<{ id: string; owned_by: string }[]>([]);
   const [mode, setMode] = useState("chat");
   const [thinking, setThinking] = useState("medium");
   const [totalCost, setTotalCost] = useState(0);
 
-  useEffect(() => {
-    async function loadModels() {
-      try {
-        const resp = await invoke<{ok:boolean;models:Array<{id:string;owned_by:string}>}>("list_available_models");
-        if (resp.ok && resp.models) setAvailableModels(resp.models);
-      } catch { /* daemon not running yet */ }
-    }
-    loadModels();
-  }, [daemonRunning]);
-  const [dragOver, setDragOver] = useState(false);
-  const [notifyEnabled, setNotifyEnabled] = useState(false);
-  const [showRag, setShowRag] = useState(false);
-  const [showDash, setShowDash] = useState(false);
-  const [showAudit, setShowAudit] = useState(false);
-  const [showWf, setShowWf] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  // Panel visibility
   const [showSidebar, setShowSidebar] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(false);
+  const [activePanel, setActivePanel] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
-  const [permRequest, setPermRequest] = useState<{id:string;description?:string} | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [permRequest, setPermRequest] = useState<{ id: string; description?: string } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("elidia-onboarded"));
   const recognitionRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  function finishOnboarding() { localStorage.setItem("elidia-onboarded", "1"); setShowOnboarding(false); }
+  useEffect(() => { document.documentElement.setAttribute("data-theme", theme); localStorage.setItem("elidia-theme", theme); }, [theme]);
+  function toggleTheme() { setTheme((t) => (t === "light" ? "dark" : "light")); }
 
-  function handleLoadMessages(msgs: {role:string;text:string}[]) {
-    setMessages(msgs.map((m) => m.role === "user" ? { role: "user" as const, text: m.text } : { role: "assistant" as const, text: m.text }));
+  function finishOnboarding() { localStorage.setItem("elidia-onboarded", "1"); setShowOnboarding(false); }
+  function handleLoadMessages(msgs: { role: string; text: string }[]) {
+    setMessages(msgs.map((m) => (m.role === "user" ? { role: "user" as const, text: m.text } : { role: "assistant" as const, text: m.text })));
   }
 
   async function checkBalance() {
     try {
-      const resp = await invoke<{ok:boolean;balance:Record<string,unknown>}>("get_balance");
+      const resp = await invoke<{ ok: boolean; balance: Record<string, unknown> }>("get_balance");
       if (resp.ok && resp.balance) setTotalCost(Number(resp.balance.balance_dt || 0));
-    } catch {}
+    } catch { }
   }
+
+  useEffect(() => {
+    async function loadModels() {
+      try {
+        const resp = await invoke<{ ok: boolean; models: Array<{ id: string; owned_by: string; label: string; is_free: boolean; cost_tier: string; supports_vision: boolean }> }>("list_available_models");
+        if (resp.ok && resp.models) setAvailableModels(resp.models);
+      } catch { }
+    }
+    loadModels();
+  }, [daemonRunning]);
+
   useEffect(() => {
     checkDaemon();
     checkBalance();
     requestNotificationPermission();
-    const unlisten2 = listen<{id:string}>("permission-request", (event) => {
-      setPermRequest({ id: event.payload.id });
-    });
+    const unlisten2 = listen<{ id: string }>("permission-request", (event) => setPermRequest({ id: event.payload.id }));
     const unlisten = listen<ChatEvent>("chat-event", (event) => {
       const { event: kind, data } = event.payload;
       switch (kind) {
-        case "thinking":
-          setMessages((prev) => [
-            ...prev,
-            { role: "thinking", model: String((data as Record<string, unknown>)?.model ?? "auto") },
-          ]);
-          break;
-        case "tool_call": {
-          const tc = data as ToolCallData;
-          setMessages((prev) => [...prev, { role: "tool-call", name: tc.name, args: tc.arguments }]);
-          break;
-        }
-        case "tool_result": {
-          const tr = data as ToolResultData;
-          setMessages((prev) => [
-            ...prev,
-            { role: "tool-result", name: tr.name, content: tr.content },
-          ]);
-          break;
-        }
-        case "content":
-          setMessages((prev) => [...prev, { role: "assistant", text: String(data) }]);
-          break;
-        case "done":
-          setSending(false);
-          break;
-        case "error":
-          setMessages((prev) => [...prev, { role: "assistant", text: `Error: ${data}` }]);
-          setSending(false);
-          break;
+        case "thinking": setMessages((prev) => [...prev, { role: "thinking", model: String((data as Record<string, unknown>)?.model ?? "auto") }]); break;
+        case "tool_call": { const tc = data as ToolCallData; setMessages((prev) => [...prev, { role: "tool-call", name: tc.name, args: tc.arguments }]); break; }
+        case "tool_result": { const tr = data as ToolResultData; setMessages((prev) => [...prev, { role: "tool-result", name: tr.name, content: tr.content }]); break; }
+        case "content": setMessages((prev) => [...prev, { role: "assistant", text: String(data) }]); break;
+        case "done": setSending(false); break;
+        case "error": setMessages((prev) => [...prev, { role: "assistant", text: `Error: ${data}` }]); setSending(false); break;
       }
     });
-    return () => {
-      unlisten.then((fn) => fn());
-      unlisten2.then((fn) => fn());
-    };
+    return () => { unlisten.then((fn) => fn()); unlisten2.then((fn) => fn()); };
   }, []);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function checkDaemon() {
-    try {
-      const status = await invoke<{ running: boolean }>("daemon_status");
-      setDaemonRunning(status.running);
-    } catch {
-      setDaemonRunning(false);
-    }
+    try { const status = await invoke<{ running: boolean }>("daemon_status"); setDaemonRunning(status.running); }
+    catch { setDaemonRunning(false); }
   }
 
   async function requestNotificationPermission() {
-    try {
-      let granted = await isPermissionGranted();
-      if (!granted) {
-        const permission = await requestPermission();
-        granted = permission === "granted";
-      }
-      setNotifyEnabled(granted);
-    } catch { /* plugin not available in dev */ }
+    try { let g = await isPermissionGranted(); if (!g) { const p = await requestPermission(); g = p === "granted"; } }
+    catch { }
   }
 
-  async function sendNotification(title: string, body: string) {
-    if (!notifyEnabled) return;
-    try { await invoke("notify", { title, body }); } catch { /* ok */ }
+  function togglePanel(panel: string) {
+    if (activePanel === panel) { closePanel(); }
+    else { setActivePanel(panel); setShowRightPanel(true); }
   }
+  function closePanel() { setActivePanel(null); setShowRightPanel(false); }
 
   async function sendMessage() {
     const text = input.trim();
     if (!text || sending) return;
-    setInput("");
-    setSending(true);
+    setInput(""); setSending(true);
     setMessages((prev) => [...prev, { role: "user", text }]);
-    try {
-      await invoke("send_chat", { message: text, mode, model: model === "auto" ? null : model });
-      sendNotification("Elidia", "Response ready");
-    } catch (e) {
-      setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]);
-      setSending(false);
-    }
+    try { await invoke("send_chat", { message: text, mode, model: model === "auto" ? null : model }); }
+    catch (e) { setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]); setSending(false); }
   }
 
-  function onDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(true);
-  }
+  function onDragOver(e: React.DragEvent) { e.preventDefault(); setDragOver(true); }
   function onDragLeave() { setDragOver(false); }
   function toggleVoice() {
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
+    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { setInput("[Voice dictation not supported in this webview]"); return; }
-    const rec = new SpeechRecognition();
-    rec.interimResults = false;
-    rec.lang = "en-US";
-    rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput((prev) => prev + (prev ? " " : "") + transcript);
-      setListening(false);
-    };
-    rec.onerror = () => setListening(false);
-    rec.onend = () => setListening(false);
-    recognitionRef.current = rec;
-    rec.start();
-    setListening(true);
+    if (!SpeechRecognition) { setInput("[Voice not supported]"); return; }
+    const rec = new SpeechRecognition(); rec.interimResults = false; rec.lang = "en-US";
+    rec.onresult = (e: any) => { setInput((prev) => prev + (prev ? " " : "") + e.results[0][0].transcript); setListening(false); };
+    rec.onerror = () => setListening(false); rec.onend = () => setListening(false);
+    recognitionRef.current = rec; rec.start(); setListening(true);
   }
-
   async function captureScreen() {
-    try {
-      const path = await invoke<string>("take_screenshot");
-      setInput((prev) => prev + (prev ? " " : "") + `[Screenshot: ${path}]`);
-    } catch (e) { setInput(`[Screenshot failed: ${e}]`); }
+    try { const path = await invoke<string>("take_screenshot"); setInput((prev) => prev + (prev ? " " : "") + `[Screenshot: ${path}]`); }
+    catch (e) { setInput(`[Screenshot failed: ${e}]`); }
   }
-
   async function respondPermission(approved: boolean) {
     if (!permRequest) return;
-    try { await invoke("respond_permission", { id: permRequest.id, approved }); } catch {}
+    try { await invoke("respond_permission", { id: permRequest.id, approved }); } catch { }
     setPermRequest(null);
   }
-
   function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
+    e.preventDefault(); setDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    // For supported types, try RAG ingest. For images, attach as vision.
-    const supported = files.filter(f => /\.(txt|md|py|js|ts|docx|xlsx|pptx|pdf|csv)$/i.test(f.name));
-    const images = files.filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name));
-    if (supported.length > 0) {
-      setInput((prev) => prev + (prev ? "\n" : "") + `[Indexing: ${supported.map(f=>f.name).join(", ")} into RAG...]`);
-      // RAG ingest happens via daemon — the chat handler will search for index
-    }
-    if (images.length > 0) {
-      setInput((prev) => prev + (prev ? "\n" : "") + `[Vision image: ${images.map(f=>f.name).join(", ")}]`);
-    }
-    if (!supported.length && !images.length) {
-      const names = files.map((f) => f.name).join(", ");
-      setInput((prev) => prev + (prev ? " " : "") + `[Attached: ${names}]`);
-    }
+    setInput((prev) => prev + (prev ? "\n" : "") + `[Attached: ${files.map((f) => f.name).join(", ")}]`);
   }
+
+  const ToolbarBtn = ({ icon: Icon, label, onClick, active }: { icon: any; label: string; onClick: () => void; active?: boolean }) => (
+    <button className={`toolbar-btn${active ? " active" : ""}`} onClick={onClick} title={label}>
+      <Icon size={17} />
+    </button>
+  );
 
   return (
     <main className="chat-app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {showOnboarding && <Onboarding onDone={finishOnboarding} />}
       {dragOver && <div className="drop-overlay">Drop files to attach</div>}
-      <div className="app-body">
-        {showSidebar && <SessionSidebar onLoadMessages={handleLoadMessages} />}
-        <div className="chat-column">
-          <header className="chat-header">
-        <div className="header-left">
-          <span className="app-name">Elidia Agent Desktop</span>
+
+      {/* ═══ Title Bar ═══ */}
+      <div className="titlebar">
+        <div className="titlebar-left">
+          <img src="/elidia-icon.png" alt="" className="titlebar-icon" />
+          <span className="titlebar-title">Elidia Agent</span>
+        </div>
+        <div className="titlebar-center">
           <span className={`daemon-dot ${daemonRunning ? "on" : daemonRunning === false ? "off" : "unknown"}`} />
-          <span className="daemon-label">
-            {daemonRunning === null ? "checking..." : daemonRunning ? "daemon running" : "daemon stopped"}
-          </span>
+          <span className="daemon-label">{daemonRunning ? "Connected" : daemonRunning === false ? "Disconnected" : "Checking…"}</span>
+        </div>
+        <div className="titlebar-right">
           {totalCost > 0 && <span className="cost-label">{totalCost.toLocaleString()} DT</span>}
         </div>
-        <div className="header-right">
-          <span className="mode-label">model:</span>
-          <select value={model} onChange={(e) => setModel(e.target.value)} className="mode-select">
-            <option value="auto">auto (system picks best)</option>
-            {availableModels.length > 0 ? availableModels.map(m => (
-              <option key={m.id} value={m.id}>{m.id} @ {m.owned_by}</option>
-            )) : <>
-              <option value="deepseek-v4-flash">deepseek-v4-flash</option>
-              <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="qwen3:1.7b">qwen3:1.7b (local)</option>
+      </div>
+
+      {/* ═══ Toolbar ═══ */}
+      <div className="toolbar">
+        <div className="toolbar-group">
+          <ToolbarBtn icon={MessageSquare} label="New Chat" onClick={() => { setMessages([]); }} />
+          <ToolbarBtn icon={Sidebar} label="Toggle Sessions" onClick={() => setShowSidebar(!showSidebar)} active={showSidebar} />
+          <ToolbarBtn icon={PanelRight} label="Toggle Panel" onClick={() => setShowRightPanel(!showRightPanel)} active={showRightPanel} />
+        </div>
+        <div className="toolbar-group">
+          <select value={mode} onChange={(e) => setMode(e.target.value)} className="tb-select" title="Mode">
+            {MODES.map((m) => (<option key={m} value={m}>{m}</option>))}
+          </select>
+          <select value={model} onChange={(e) => setModel(e.target.value)} className="tb-select" title="Model" style={{ minWidth: 140 }}>
+            <option value="auto">🤖 auto (best pick)</option>
+            {availableModels.length > 0 ? (() => {
+              const vendors = [...new Set(availableModels.map(m => m.owned_by))];
+              return vendors.map(v => (
+                <optgroup key={v} label={v}>
+                  {availableModels.filter(m => m.owned_by === v).map(m => (
+                    <option key={m.id} value={m.id}>{m.label || m.id.split('/').pop()}{m.is_free ? ' (free)' : ''}</option>
+                  ))}
+                </optgroup>
+              ));
+            })() : <>
+              <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
+              <option value="anthropic/claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="openai/gpt-4o">GPT-4o</option>
+              <option value="local/qwen2.5:7b">Qwen 2.5 7B (free)</option>
             </>}
           </select>
-          <span className="mode-label">think:</span>
-          <select value={thinking} onChange={(e) => setThinking(e.target.value)} className="mode-select">
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-            <option value="deep">deep</option>
+          <select value={thinking} onChange={(e) => setThinking(e.target.value)} className="tb-select tb-select-sm" title="Thinking">
+            <option value="low">low</option><option value="medium">med</option><option value="high">high</option><option value="deep">deep</option>
           </select>
-          <span className="mode-label">mode:</span>
-          <select value={mode} onChange={(e) => setMode(e.target.value)} className="mode-select">
-            {MODES.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-          <button className="refresh-btn" onClick={() => setShowRag(!showRag)} title="RAG Manager">
-            {showRag ? "✕" : "📚"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowDash(!showDash)} title="Daemon Dashboard">
-            {showDash ? "✕" : "⚙"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowAudit(!showAudit)} title="Audit Log">
-            {showAudit ? "✕" : "🔍"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowWf(!showWf)} title="Workflow Builder">
-            {showWf ? "✕" : "⚡"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowInfo(!showInfo)} title="Agent Info">
-            {showInfo ? "✕" : "ℹ"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowAdvanced(!showAdvanced)} title="Research & Creative">
-            {showAdvanced ? "✕" : "🔬"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowSidebar(!showSidebar)} title="Toggle sidebar">
-            {showSidebar ? "☰" : "☰"}
-          </button>
-          <button className="refresh-btn" onClick={() => setShowSettings(!showSettings)} title="Settings">
-            {showSettings ? "✕" : "⚙"}
-          </button>
-          <button className="refresh-btn" onClick={checkDaemon} title="Check daemon status">⟳</button>
         </div>
-      </header>
+        <div className="toolbar-group">
+          <ToolbarBtn icon={BookOpen} label="RAG Manager" onClick={() => togglePanel("rag")} active={activePanel === "rag"} />
+          <ToolbarBtn icon={Activity} label="Daemon Dashboard" onClick={() => togglePanel("dash")} active={activePanel === "dash"} />
+          <ToolbarBtn icon={Shield} label="Audit Log" onClick={() => togglePanel("audit")} active={activePanel === "audit"} />
+          <ToolbarBtn icon={Zap} label="Workflow Builder" onClick={() => togglePanel("wf")} active={activePanel === "wf"} />
+          <ToolbarBtn icon={Brain} label="Advanced" onClick={() => togglePanel("adv")} active={activePanel === "adv"} />
+          <ToolbarBtn icon={Settings} label="Settings" onClick={() => togglePanel("settings")} active={activePanel === "settings"} />
+          <ToolbarBtn icon={RefreshCw} label="Refresh Daemon" onClick={checkDaemon} />
+        </div>
+        <div className="toolbar-group toolbar-end">
+          <ToolbarBtn icon={theme === "light" ? Moon : Sun} label={theme === "light" ? "Dark Mode" : "Light Mode"} onClick={toggleTheme} />
+        </div>
+      </div>
 
-      <div className="message-list">
-        {messages.length === 0 && (
-          <div className="empty-state">
-            <p>Elidia Agent Desktop — Phase 1</p>
-            <p className="sub">Send a message to start. The daemon must be running
-            (<code>elidia daemon start</code> in a terminal first).</p>
+      {/* ═══ Body ═══ */}
+      <div className="app-body">
+        {showSidebar && <SessionSidebar onLoadMessages={handleLoadMessages} />}
+
+        <div className="chat-column">
+          {/* Messages */}
+          <div className="message-list">
+            {messages.length === 0 && (
+              <div className="empty-state">
+                <img src="/elidia-icon.png" alt="" className="empty-icon" />
+                <p>Elidia Agent Desktop</p>
+                <p className="sub">
+                  Your AI workspace — chat, code, analyze, create.<br />
+                  {!daemonRunning && <>Run <code>elidia daemon start</code> to connect.</>}
+                </p>
+              </div>
+            )}
+            {messages.map((msg, i) => (
+              <div key={i} className={`message ${msg.role}`}>
+                {msg.role === "user" && <div className="bubble user-bubble">{msg.text}</div>}
+                {msg.role === "assistant" && <div className="bubble assistant-bubble">{msg.text}</div>}
+                {msg.role === "tool-call" && (
+                  <div className="tool-card"><Wrench size={13} /><span className="tool-name">{msg.name}({JSON.stringify(msg.args)})</span></div>
+                )}
+                {msg.role === "tool-result" && (
+                  <div className="tool-card result"><Database size={13} /><span className="tool-content">{msg.content.slice(0, 200)}</span></div>
+                )}
+                {msg.role === "thinking" && (
+                  <div className="thinking-line"><Brain size={13} /> thinking with {msg.model}…</div>
+                )}
+              </div>
+            ))}
+            {sending && <div className="message assistant"><div className="bubble assistant-bubble typing">…</div></div>}
+            <div ref={endRef} />
+          </div>
+
+          {/* Composer */}
+          <form className="composer" onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
+            <button type="button" className={`composer-icon ${listening ? "active" : ""}`} onClick={toggleVoice} title={listening ? "Stop" : "Voice Input"}>
+              <Mic size={16} />
+            </button>
+            <button type="button" className="composer-icon" onClick={captureScreen} title="Screenshot">
+              <Camera size={16} />
+            </button>
+            <input
+              className="composer-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={daemonRunning ? "Ask anything — code, analysis, generation…" : "Start daemon with 'elidia daemon start'"}
+              disabled={!daemonRunning || sending}
+            />
+            <button type="submit" disabled={!daemonRunning || sending || !input.trim()}>
+              <SendIcon />
+            </button>
+          </form>
+        </div>
+
+        {/* Right panel */}
+        {showRightPanel && (
+          <div className="right-panel">
+            <div className="right-panel-header">
+              <span className="right-panel-title">
+                {activePanel === "rag" && "RAG Manager"}
+                {activePanel === "dash" && "Daemon Dashboard"}
+                {activePanel === "audit" && "Audit Log"}
+                {activePanel === "wf" && "Workflow Builder"}
+                {activePanel === "adv" && "Advanced"}
+                {activePanel === "settings" && "Settings"}
+                {activePanel === "info" && "Info"}
+              </span>
+              <button className="sidebar-btn" onClick={closePanel} title="Close panel">✕</button>
+            </div>
+            {activePanel === "rag" && <RagManager />}
+            {activePanel === "dash" && <DaemonDashboard />}
+            {activePanel === "audit" && <AuditLog />}
+            {activePanel === "wf" && <WorkflowBuilder />}
+            {activePanel === "adv" && <AdvancedPanel />}
+            {activePanel === "settings" && <SettingsPanel />}
+            {activePanel === "info" && <InfoPanel />}
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`message ${msg.role}`}>
-            {msg.role === "user" && <div className="bubble user-bubble">{msg.text}</div>}
-            {msg.role === "assistant" && <div className="bubble assistant-bubble">{msg.text}</div>}
-            {msg.role === "tool-call" && (
-              <div className="tool-card">
-                <span className="tool-icon">🔧</span>
-                <span className="tool-name">{msg.name}({JSON.stringify(msg.args)})</span>
-              </div>
-            )}
-            {msg.role === "tool-result" && (
-              <div className="tool-card result">
-                <span className="tool-icon">📋</span>
-                <span className="tool-content">{msg.content.slice(0, 200)}</span>
-              </div>
-            )}
-            {msg.role === "thinking" && (
-              <div className="thinking-line">
-                <span className="thinking-icon">🧠</span> thinking with {msg.model}…
-              </div>
-            )}
-          </div>
-        ))}
-        {sending && <div className="message assistant"><div className="bubble assistant-bubble typing">…</div></div>}
-        <div ref={endRef} />
       </div>
 
-      <form
-        className="composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          sendMessage();
-        }}
-      >
-        <input
-          className="composer-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={daemonRunning ? "Send a message…" : "Daemon not running — start with 'elidia daemon start' first"}
-          disabled={!daemonRunning || sending}
-        />
-        <button type="button" className={`composer-icon ${listening ? "active" : ""}`}
-          onClick={toggleVoice} title={listening ? "Stop listening" : "Voice input"}>
-          {listening ? "⏹" : "🎤"}
-        </button>
-        <button type="button" className="composer-icon" onClick={captureScreen} title="Capture screen">
-          📸
-        </button>
-        <button type="submit" disabled={!daemonRunning || sending || !input.trim()}>
-          Send
-        </button>
-      </form>
-        </div>
-        {showRag && <RagManager />}
-        {showDash && <DaemonDashboard />}
-        {showAudit && <AuditLog />}
-        {showWf && <WorkflowBuilder />}
-        {showInfo && <InfoPanel />}
-        {showAdvanced && <AdvancedPanel />}
-        {showSettings && <SettingsPanel />}
-      </div>
+      {/* Permission modal */}
       {permRequest && (
         <div className="perm-overlay">
           <div className="perm-modal">
@@ -390,6 +322,14 @@ function App() {
         </div>
       )}
     </main>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
   );
 }
 

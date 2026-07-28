@@ -46,6 +46,7 @@ function App() {
   const [availableModels, setAvailableModels] = useState<{id:string;owned_by:string}[]>([]);
   const [mode, setMode] = useState("chat");
   const [thinking, setThinking] = useState("medium");
+  const [totalCost, setTotalCost] = useState(0);
 
   useEffect(() => {
     async function loadModels() {
@@ -78,8 +79,15 @@ function App() {
     setMessages(msgs.map((m) => m.role === "user" ? { role: "user" as const, text: m.text } : { role: "assistant" as const, text: m.text }));
   }
 
+  async function checkBalance() {
+    try {
+      const resp = await invoke<{ok:boolean;balance:Record<string,unknown>}>("get_balance");
+      if (resp.ok && resp.balance) setTotalCost(Number(resp.balance.balance_dt || 0));
+    } catch {}
+  }
   useEffect(() => {
     checkDaemon();
+    checkBalance();
     requestNotificationPermission();
     const unlisten2 = listen<{id:string}>("permission-request", (event) => {
       setPermRequest({ id: event.payload.id });
@@ -244,6 +252,7 @@ function App() {
           <span className="daemon-label">
             {daemonRunning === null ? "checking..." : daemonRunning ? "daemon running" : "daemon stopped"}
           </span>
+          {totalCost > 0 && <span className="cost-label">{totalCost.toLocaleString()} DT</span>}
         </div>
         <div className="header-right">
           <span className="mode-label">model:</span>

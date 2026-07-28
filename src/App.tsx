@@ -6,7 +6,7 @@ import {
   MessageSquare, Code, Search, Brain, Sparkles, FolderOpen,
   Settings, Sun, Moon, Monitor, Paperclip, Mic, Camera,
   Sidebar, PanelRight, Plus, RefreshCw, Wrench, Shield,
-  BookOpen, BarChart3, Zap, Activity, Database, Terminal,
+  BookOpen, BarChart3, TrendingUp, Zap, Activity, Database, Terminal,
 } from "lucide-react";
 import RagManager from "./RagManager";
 import DaemonDashboard from "./DaemonDashboard";
@@ -14,6 +14,7 @@ import AuditLog from "./AuditLog";
 import WorkflowBuilder from "./WorkflowBuilder";
 import InfoPanel from "./InfoPanel";
 import AdvancedPanel from "./AdvancedPanel";
+import LearningPanel from "./LearningPanel";
 import SessionSidebar from "./SessionSidebar";
 import Onboarding from "./Onboarding";
 import SettingsPanel from "./SettingsPanel";
@@ -254,6 +255,7 @@ function App() {
           <ToolbarBtn icon={Shield} label="Audit Log" onClick={() => togglePanel("audit")} active={activePanel === "audit"} />
           <ToolbarBtn icon={Zap} label="Workflow Builder" onClick={() => togglePanel("wf")} active={activePanel === "wf"} />
           <ToolbarBtn icon={Brain} label="Advanced" onClick={() => togglePanel("adv")} active={activePanel === "adv"} />
+          <ToolbarBtn icon={TrendingUp} label="Learning Dashboard" onClick={() => togglePanel("learning")} active={activePanel === "learning"} />
           <ToolbarBtn icon={Settings} label="Settings" onClick={() => togglePanel("settings")} active={activePanel === "settings"} />
           <ToolbarBtn icon={RefreshCw} label="Refresh Daemon" onClick={checkDaemon} />
         </div>
@@ -349,6 +351,7 @@ function App() {
                 {activePanel === "audit" && "Audit Log"}
                 {activePanel === "wf" && "Workflow Builder"}
                 {activePanel === "adv" && "Advanced"}
+                {activePanel === "learning" && "Learning Dashboard"}
                 {activePanel === "settings" && "Settings"}
                 {activePanel === "info" && "Info"}
               </span>
@@ -359,6 +362,7 @@ function App() {
             {activePanel === "audit" && <AuditLog />}
             {activePanel === "wf" && <WorkflowBuilder />}
             {activePanel === "adv" && <AdvancedPanel />}
+            {activePanel === "learning" && <LearningPanel />}
             {activePanel === "settings" && <SettingsPanel />}
             {activePanel === "info" && <InfoPanel />}
           </div>

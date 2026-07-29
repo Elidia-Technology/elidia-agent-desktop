@@ -19,6 +19,17 @@ export default defineConfig(async () => ({
   build: {
     // Tauri webview can't resolve bare module specifiers in production.
     // All Tauri APIs and plugins must be bundled.
+    target: "es2021",
+    minify: "esbuild",
+    cssMinify: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          icons: ["lucide-react"],
+        },
+      },
+    },
   },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {

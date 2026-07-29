@@ -1,41 +1,28 @@
-<p align="center">
-  <h1 align="center">Elidia Agent Desktop</h1>
-  <p align="center"><strong>Native desktop shell for the Elidia agent</strong></p>
-  <p align="center">
-    macOS · Linux · Windows — with a path to iOS/Android via the same Tauri 2 codebase.
-  </p>
-</p>
+# Elidia Agent Desktop — v0.2.2
 
----
+Native desktop app (Tauri 2) wrapping the Elidia CLI engine. macOS, Linux, Windows.
 
-## What is this?
+## Download
+| Platform | Download |
+|---|---|
+| macOS | [Elidia Agent_0.2.2_x64.dmg](https://github.com/Elidia-Technology/elidia-agent-desktop/releases/latest) (13MB) |
+| Linux (.deb/.rpm) | [CI Build](https://github.com/Elidia-Technology/elidia-agent-desktop/actions) |
+| Windows (.msi) | [CI Build](https://github.com/Elidia-Technology/elidia-agent-desktop/actions) |
 
-Elidia Agent Desktop is **not a rewrite** of [Elidia Agent CLI](https://pypi.org/project/elidia-agent-cli/).
-It's a native Tauri 2 shell around the exact same Python `elidia` core — same agent loop, same
-36 tools across 11 skill categories, same 4-tier permission system, same RAG store, same
-background daemon. Desktop's job is presentation and OS integration (system tray, notifications,
-drag-and-drop, voice input, visual dashboards) — not reimplementing what already works and is
-already tested in the CLI.
+## Requirements
+- [Elidia CLI](https://pypi.org/project/elidia-agent-cli/) installed
 
-Full plan and architecture flowcharts live in the `AiUtils.io` repo:
-- `media/plans/elidia_enterprise/18_ELIDIA_DESKTOP_MASTER_PLAN.md`
-- `media/plans/elidia_enterprise/19_ELIDIA_DESKTOP_FLOWCHARTS.md`
+## Features
+- 50 LLMs via daemon — same engine as CLI (v0.6)
+- 6 modes: Chat, Code, Research, Think, Create, MoA
+- 141+ portal AI tools accessible through chat
+- 9 panels: RAG, Daemon, Audit, Workflow, Advanced (MoA), Learning, Settings (Skills+Gateway), Info
+- File upload (drag & drop, 10 files max)
+- Screenshot capture for instant vision analysis
+- All v0.6 engine features via daemon IPC
 
-## Status
-
-Early scaffolding (Phase 0 — see the master plan §7). Core chat parity, OS integration, visual
-surfaces, and packaging are tracked as separate phases, not yet built.
-
-## Development
-
+## Dev
 ```bash
-npm install
-npm run tauri dev      # desktop dev mode
-npm run tauri build    # release bundle for the current OS
+npm install && npm run tauri dev
+npm run tauri build
 ```
-
-Requires a Rust toolchain (`rustup`) in addition to Node.
-
-## License
-
-Proprietary — Elidia Technology Pvt Ltd. See [LICENSE](LICENSE).

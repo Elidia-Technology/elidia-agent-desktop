@@ -10,7 +10,12 @@ use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+#[cfg(unix)]
 use tokio::net::UnixStream;
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::NamedPipeClient;
+#[cfg(windows)]
+use std::path::PathBuf;
 use tokio::sync::{oneshot, Mutex};
 
 /// Shared state for the permission IPC round-trip (AIUT-2148).

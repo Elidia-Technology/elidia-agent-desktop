@@ -6,6 +6,7 @@ on:
 jobs:
   build-all:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -19,7 +20,21 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev libssl-dev
       - run: npm install
-      - run: npx tauri build
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: npx tauri build --bundles dmg
+        env:
+          CI: true
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: npx tauri build --bundles deb,rpm
+        env:
+          CI: true
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: npx tauri build --bundles msi
+        env:
+          CI: true
       - uses: actions/upload-artifact@v4
         with:
           name: elidia-desktop-${{ runner.os }}

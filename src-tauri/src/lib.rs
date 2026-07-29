@@ -12,6 +12,8 @@ use tauri::tray::TrayIconBuilder;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[cfg(unix)]
 use tokio::net::UnixStream;
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 use tokio::sync::{oneshot, Mutex};
 
 /// Shared state for the permission IPC round-trip (AIUT-2148).
@@ -23,15 +25,15 @@ struct PermissionState {
     pending: Mutex<HashMap<String, oneshot::Sender<bool>>>,
 }
 
-// ---- daemon socket discovery ----
+// ---- daemon IPC endpoint discovery ----
 
-/// Computes the daemon's Unix socket path using the exact same algorithm as
+/// Computes the daemon's IPC endpoint using the exact same algorithm as
 /// Python's `elidia.daemon.worker._short_socket_path()` — SHA-256 of the
-/// resolved ELIDIA_HOME, first 12 hex chars, placed in the system temp dir.
-/// This is what lets two separate processes (the Desktop app and any `elidia
-/// daemon status` CLI invocation) find the same running daemon without
-/// hardcoding a path or introducing a separate discovery protocol.
-fn daemon_socket_path() -> PathBuf {
+/// resolved ELIDIA_HOME, first 12 hex chars.
+///
+/// Unix: socket path in temp dir
+/// Windows: named pipe path `\\.\pipe\elidia-daemon-{hash}`
+fn daemon_ipc_endpoint() -> String {
     let elidia_home = std::env::var("ELIDIA_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
@@ -42,7 +44,25 @@ fn daemon_socket_path() -> PathBuf {
     let resolved = std::fs::canonicalize(&elidia_home).unwrap_or(elidia_home);
     let hash = Sha256::digest(resolved.to_string_lossy().as_bytes());
     let hash_hex = format!("{:x}", hash);
-    std::env::temp_dir().join(format!("elidia-daemon-{}.sock", &hash_hex[..12]))
+    let id = &hash_hex[..12];
+
+    #[cfg(unix)]
+    {
+        std::env::temp_dir()
+            .join(format!("elidia-daemon-{}.sock", id))
+            .to_string_lossy()
+            .to_string()
+    }
+    #[cfg(windows)]
+    {
+        format!("\\\\.\\pipe\\elidia-daemon-{}", id)
+    }
+}
+
+/// Kept for backward compatibility with existing Unix code paths.
+#[cfg(unix)]
+fn daemon_socket_path() -> PathBuf {
+    PathBuf::from(daemon_ipc_endpoint())
 }
 
 // ---- JSON types (mirrors Python's daemon IPC protocol) ----
@@ -106,15 +126,31 @@ struct ToolInfo {
     category: String,
 }
 
-// ---- low-level IPC helpers ----
+// ---- Platform-agnostic IPC transport ----
+
+/// Connect to the daemon using the appropriate transport for this platform.
+/// Unix: connects via UnixStream. Windows: connects via NamedPipe.
+async fn ipc_connect() -> Result<impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, String> {
+    let endpoint = daemon_ipc_endpoint();
+
+    #[cfg(unix)]
+    {
+        let path = PathBuf::from(&endpoint);
+        UnixStream::connect(&path)
+            .await
+            .map_err(|e| format!("Daemon not running ({}: {})", path.display(), e))
+    }
+    #[cfg(windows)]
+    {
+        ClientOptions::new()
+            .open(&endpoint)
+            .map_err(|e| format!("Daemon not running ({}: {})", endpoint, e))
+    }
+}
 
 async fn ipc_send_recv(request: &IpcRequest) -> Result<Value, String> {
-    let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket)
-        .await
-        .map_err(|e| format!("Daemon not running ({}: {})", socket.display(), e))?;
-
-    let (reader, mut writer) = stream.into_split();
+    let stream = ipc_connect().await?;
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
 
     let payload =
@@ -203,7 +239,7 @@ async fn send_chat(
     thinking: Option<String>,
 ) -> Result<i32, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket)
+    let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running ({}: {})", socket.display(), e))?;
 
@@ -274,7 +310,7 @@ async fn respond_permission(state: tauri::State<'_, PermissionState>, id: String
 }
 
 async fn check_pending_permissions(socket: &PathBuf) -> Result<Option<String>, String> {
-    let stream = UnixStream::connect(socket).await.map_err(|e| format!("poll: {}", e))?;
+    let stream = ipc_connect().await.map_err(|e| format!("poll: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     writer.write_all(b"{\"cmd\":\"pending_permissions\"}\n").await.map_err(|e| format!("w: {}", e))?;
@@ -303,7 +339,7 @@ async fn rag_list_sources() -> Result<String, String> {
 async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String> {
     // rag_search needs special handling — the IPC request shape differs
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket)
+    let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running ({}: {})", socket.display(), e))?;
     let (reader, mut writer) = stream.into_split();
@@ -345,7 +381,7 @@ async fn get_daemon_config() -> Result<Value, String> {
 #[tauri::command]
 async fn get_audit_log(limit: Option<i32>) -> Result<Value, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket)
+    let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
@@ -360,7 +396,7 @@ async fn get_audit_log(limit: Option<i32>) -> Result<Value, String> {
 #[tauri::command]
 async fn workflow_run(yaml: String) -> Result<Value, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket)
+    let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
@@ -409,7 +445,7 @@ async fn list_local_models() -> Result<Value, String> {
 // Also usable via invoke() since Tauri auto-registers pub fns with compatible sigs.
 pub async fn headless_chat(message: String, mode: Option<String>) -> Result<String, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running ({}): {}", socket.display(), e))?;
+    let stream = ipc_connect().await.map_err(|e| format!("Daemon not running ({}): {}", socket.display(), e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"chat","messages":[{"role":"user","content":message}],"mode":mode.unwrap_or_else(||"chat".into())});
@@ -433,7 +469,7 @@ pub async fn headless_chat(message: String, mode: Option<String>) -> Result<Stri
 #[tauri::command]
 async fn chat_local(app_handle: tauri::AppHandle, message: String, model: Option<String>) -> Result<i32, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running: {}", e))?;
+    let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"chat_local","messages":[{"role":"user","content":message}],"model":model.unwrap_or_else(|| "qwen3:1.7b".into())});
@@ -470,7 +506,7 @@ async fn get_trust_stats() -> Result<Value, String> {
 
 async fn ipc_with_body(body: Value) -> Result<Value, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running: {}", e))?;
+    let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     writer.write_all(format!("{}\n", body).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
@@ -482,7 +518,7 @@ async fn ipc_with_body(body: Value) -> Result<Value, String> {
 #[tauri::command]
 async fn start_research(app_handle: tauri::AppHandle, question: String) -> Result<i32, String> {
     let socket = daemon_socket_path();
-    let stream = UnixStream::connect(&socket).await.map_err(|e| format!("Daemon not running: {}", e))?;
+    let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"research_start","question":question});

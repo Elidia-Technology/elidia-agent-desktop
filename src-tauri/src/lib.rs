@@ -57,6 +57,22 @@ struct IpcRequest {
     model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    files: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<i32>,
+}
+
+impl IpcRequest {
+    fn simple(cmd: &str) -> Self {
+        IpcRequest {
+            cmd: cmd.into(),
+            messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+            files: None, query: None, limit: None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -127,7 +143,7 @@ async fn daemon_status() -> Result<DaemonStatus, String> {
         messages: None,
         mode: None,
         model: None,
-        session_id: None,
+        session_id: None, files: None, query: None, limit: None,
     };
     let response = ipc_send_recv(&request).await?;
     if !response
@@ -153,7 +169,7 @@ async fn list_tools() -> Result<Vec<ToolInfo>, String> {
         messages: None,
         mode: None,
         model: None,
-        session_id: None,
+        session_id: None, files: None, query: None, limit: None,
     };
     let response = ipc_send_recv(&request).await?;
     if !response
@@ -199,7 +215,7 @@ async fn send_chat(
         }]),
         mode: Some(mode.unwrap_or_else(|| "chat".into())),
         model,
-        session_id: None,
+        session_id: None, files: None, query: None, limit: None,
     };
 
     let payload =
@@ -269,7 +285,7 @@ async fn check_pending_permissions(socket: &PathBuf) -> Result<Option<String>, S
 async fn rag_list_sources() -> Result<String, String> {
     let request = IpcRequest {
         cmd: "rag_list_sources".into(),
-        messages: None, mode: None, model: None, session_id: None,
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
     };
     let response = ipc_send_recv(&request).await?;
     Ok(response
@@ -317,7 +333,7 @@ async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String>
 async fn get_daemon_config() -> Result<Value, String> {
     let request = IpcRequest {
         cmd: "get_daemon_config".into(),
-        messages: None, mode: None, model: None, session_id: None,
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
     };
     ipc_send_recv(&request).await
 }
@@ -354,7 +370,7 @@ async fn workflow_run(yaml: String) -> Result<Value, String> {
 
 #[tauri::command]
 async fn get_balance() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "get_balance".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("get_balance")).await
 }
 #[tauri::command]
 async fn get_session_messages(session_id: String) -> Result<Value, String> {
@@ -363,11 +379,11 @@ async fn get_session_messages(session_id: String) -> Result<Value, String> {
 
 #[tauri::command]
 async fn list_mcp_servers() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "list_mcp_servers".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("list_mcp_servers")).await
 }
 #[tauri::command]
 async fn list_personas() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "list_personas".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("list_personas")).await
 }
 #[tauri::command]
 async fn store_api_key(key: String) -> Result<Value, String> {
@@ -379,11 +395,11 @@ async fn store_email_creds(address: String, password: String, smtp_host: String,
 }
 #[tauri::command]
 async fn list_available_models() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "list_available_models".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("list_available_models")).await
 }
 #[tauri::command]
 async fn list_local_models() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "list_local_models".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("list_local_models")).await
 }
 // Not a #[tauri::command] — called directly from main.rs for headless mode.
 // Also usable via invoke() since Tauri auto-registers pub fns with compatible sigs.
@@ -433,7 +449,7 @@ async fn chat_local(app_handle: tauri::AppHandle, message: String, model: Option
 }
 #[tauri::command]
 async fn list_models() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "list_models".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("list_models")).await
 }
 #[tauri::command]
 async fn search_memory(query: Option<String>, limit: Option<i32>) -> Result<Value, String> {
@@ -445,7 +461,7 @@ async fn forget_memory(key: String) -> Result<Value, String> {
 }
 #[tauri::command]
 async fn get_trust_stats() -> Result<Value, String> {
-    ipc_send_recv(&IpcRequest { cmd: "get_trust_stats".into(), messages: None, mode: None, model: None, session_id: None }).await
+    ipc_send_recv(&IpcRequest::simple("get_trust_stats")).await
 }
 
 async fn ipc_with_body(body: Value) -> Result<Value, String> {
@@ -531,6 +547,76 @@ async fn take_screenshot(app: tauri::AppHandle) -> Result<String, String> {
         .await
         .map_err(|e| format!("capture: {}", e))?;
     Ok(path.to_string_lossy().to_string())
+}
+
+// ── Daemon IPC proxy commands ─────────────────────────────────────────
+// These proxy frontend invoke() calls to the Python daemon over Unix socket.
+// The daemon worker (elidia/daemon/worker.py) handles the actual logic.
+
+#[tauri::command]
+async fn attach_files(files: Vec<String>) -> Result<Value, String> {
+    let request = IpcRequest {
+        cmd: "attach_files".into(),
+        messages: None,
+        mode: None,
+        model: None,
+        session_id: None, files: None, query: None, limit: None,
+        files: Some(files),
+        query: None,
+        limit: None,
+    };
+    let response = ipc_send_recv(&request).await?;
+    if !response.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Err(response.get("error").and_then(|v| v.as_str()).unwrap_or("unknown daemon error").into());
+    }
+    Ok(response)
+}
+
+#[tauri::command]
+async fn list_sessions() -> Result<Vec<Value>, String> {
+    let request = IpcRequest {
+        cmd: "list_sessions".into(),
+        messages: None,
+        mode: None,
+        model: None,
+        session_id: None, files: None, query: None, limit: None,
+    };
+    let response = ipc_send_recv(&request).await?;
+    if !response.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Err(response.get("error").and_then(|v| v.as_str()).unwrap_or("unknown daemon error").into());
+    }
+    let sessions: Vec<Value> = serde_json::from_value(response["sessions"].clone()).unwrap_or_default();
+    Ok(sessions)
+}
+
+#[tauri::command]
+async fn get_outcomes() -> Result<Value, String> {
+    let request = IpcRequest {
+        cmd: "get_outcomes".into(),
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+    };
+    ipc_send_recv(&request).await
+}
+
+#[tauri::command]
+async fn get_learning_report() -> Result<Value, String> {
+    let request = IpcRequest {
+        cmd: "get_learning_report".into(),
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+    };
+    ipc_send_recv(&request).await
+}
+
+#[tauri::command]
+async fn search_knowledge(query: String) -> Result<Value, String> {
+    let request = IpcRequest {
+        cmd: "search_knowledge".into(),
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+        files: None,
+        query: Some(query),
+        limit: None,
+    };
+    ipc_send_recv(&request).await
 }
 
 #[tauri::command]
@@ -625,7 +711,7 @@ pub fn run() {
             Ok(())
         })
         .manage(PermissionState { pending: Mutex::new(HashMap::new()) })
-        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, authenticate_biometric, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_available_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local, store_api_key, store_email_creds])
+        .invoke_handler(tauri::generate_handler![daemon_status, send_chat, list_tools, notify, take_screenshot, paste_image, respond_permission, authenticate_biometric, rag_list_sources, rag_search, get_daemon_config, get_audit_log, workflow_run, get_balance, get_session_messages, list_mcp_servers, list_personas, list_local_models, list_available_models, list_models, search_memory, forget_memory, get_trust_stats, start_research, chat_local, store_api_key, store_email_creds, attach_files, list_sessions, get_outcomes, get_learning_report, search_knowledge])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

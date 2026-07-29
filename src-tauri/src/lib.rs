@@ -63,14 +63,15 @@ struct IpcRequest {
     query: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     limit: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<String>,
 }
 
 impl IpcRequest {
     fn simple(cmd: &str) -> Self {
         IpcRequest {
             cmd: cmd.into(),
-            messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
-            files: None, query: None, limit: None,
+            messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None, thinking: None,
         }
     }
 }
@@ -143,7 +144,7 @@ async fn daemon_status() -> Result<DaemonStatus, String> {
         messages: None,
         mode: None,
         model: None,
-        session_id: None, files: None, query: None, limit: None,
+        session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     let response = ipc_send_recv(&request).await?;
     if !response
@@ -169,7 +170,7 @@ async fn list_tools() -> Result<Vec<ToolInfo>, String> {
         messages: None,
         mode: None,
         model: None,
-        session_id: None, files: None, query: None, limit: None,
+        session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     let response = ipc_send_recv(&request).await?;
     if !response
@@ -217,6 +218,7 @@ async fn send_chat(
         mode: Some(mode.unwrap_or_else(|| "chat".into())),
         model,
         session_id: None, files: None, query: None, limit: None,
+        thinking: thinking,
     };
 
     let payload =
@@ -286,7 +288,7 @@ async fn check_pending_permissions(socket: &PathBuf) -> Result<Option<String>, S
 async fn rag_list_sources() -> Result<String, String> {
     let request = IpcRequest {
         cmd: "rag_list_sources".into(),
-        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     let response = ipc_send_recv(&request).await?;
     Ok(response
@@ -334,7 +336,7 @@ async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String>
 async fn get_daemon_config() -> Result<Value, String> {
     let request = IpcRequest {
         cmd: "get_daemon_config".into(),
-        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     ipc_send_recv(&request).await
 }
@@ -561,10 +563,11 @@ async fn attach_files(files: Vec<String>) -> Result<Value, String> {
         messages: None,
         mode: None,
         model: None,
-        session_id: None, files: None, query: None, limit: None,
+        session_id: None,
         files: Some(files),
         query: None,
         limit: None,
+        thinking: None,
     };
     let response = ipc_send_recv(&request).await?;
     if !response.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
@@ -580,7 +583,7 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
         messages: None,
         mode: None,
         model: None,
-        session_id: None, files: None, query: None, limit: None,
+        session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     let response = ipc_send_recv(&request).await?;
     if !response.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
@@ -594,7 +597,7 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
 async fn get_outcomes() -> Result<Value, String> {
     let request = IpcRequest {
         cmd: "get_outcomes".into(),
-        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     ipc_send_recv(&request).await
 }
@@ -603,7 +606,7 @@ async fn get_outcomes() -> Result<Value, String> {
 async fn get_learning_report() -> Result<Value, String> {
     let request = IpcRequest {
         cmd: "get_learning_report".into(),
-        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None, thinking: None,
     };
     ipc_send_recv(&request).await
 }
@@ -612,10 +615,11 @@ async fn get_learning_report() -> Result<Value, String> {
 async fn search_knowledge(query: String) -> Result<Value, String> {
     let request = IpcRequest {
         cmd: "search_knowledge".into(),
-        messages: None, mode: None, model: None, session_id: None, files: None, query: None, limit: None,
+        messages: None, mode: None, model: None, session_id: None,
         files: None,
         query: Some(query),
         limit: None,
+        thinking: None,
     };
     ipc_send_recv(&request).await
 }

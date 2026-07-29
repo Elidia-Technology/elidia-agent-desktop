@@ -41,3 +41,4 @@ linux-deb/
 linux-rpm/
 linux-appimage/
 dist/
+src-tauri/gen/schemas/

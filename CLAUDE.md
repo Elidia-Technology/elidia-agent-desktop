@@ -60,7 +60,7 @@ present; verify before claiming a mobile build works).
 - Max 10 files, voice input (🎤), screenshot capture (📸)
 
 ### Agent Features (via Python daemon)
-- 5 execution modes: DIRECT, CONSENSUS, HARNESS, DEEP, SWARM
+- 5 conversation modes: chat, code, research, think, create (CLI modes: DIRECT, CONSENSUS, HARNESS, DEEP, SWARM)
 - Self-learning: OutcomeTracker + PatternLearner + KnowledgeGraph
 - Research: 5-stage pipeline with source-verified citations
 - 29 CLI slash commands accessible via daemon IPC

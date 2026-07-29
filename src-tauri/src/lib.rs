@@ -198,6 +198,7 @@ async fn send_chat(
     message: String,
     mode: Option<String>,
     model: Option<String>,
+    thinking: Option<String>,
 ) -> Result<i32, String> {
     let socket = daemon_socket_path();
     let stream = UnixStream::connect(&socket)

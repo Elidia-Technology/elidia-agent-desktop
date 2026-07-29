@@ -129,7 +129,7 @@ function App() {
     setInput(""); setSending(true);
     setMessages((prev) => [...prev, { role: "user", text: displayText }]);
     setAttachments([]);
-    try { await invoke("send_chat", { message: displayText, mode, model: model === "auto" ? null : model }); }
+    try { await invoke("send_chat", { message: displayText, mode, model: model === "auto" ? null : model, thinking }); }
     catch (e) { setMessages((prev) => [...prev, { role: "assistant", text: `Failed: ${e}` }]); setSending(false); }
   }
 
@@ -221,7 +221,7 @@ function App() {
         <div className="toolbar-group">
           <ToolbarBtn icon={MessageSquare} label="New Chat" onClick={() => { setMessages([]); }} />
           <ToolbarBtn icon={Sidebar} label="Toggle Sessions" onClick={() => setShowSidebar(!showSidebar)} active={showSidebar} />
-          <ToolbarBtn icon={PanelRight} label="Toggle Panel" onClick={() => setShowRightPanel(!showRightPanel)} active={showRightPanel} />
+          <ToolbarBtn icon={PanelRight} label="Toggle Panel" onClick={() => { if (showRightPanel) { closePanel(); } else { togglePanel("settings"); } }} active={showRightPanel} />
         </div>
         <div className="toolbar-group">
           <select value={mode} onChange={(e) => setMode(e.target.value)} className="tb-select" title="Mode">

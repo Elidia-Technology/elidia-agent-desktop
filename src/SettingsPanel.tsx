@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 export default function SettingsPanel() {
-  const [tab, setTab] = useState<"models" | "mcp" | "budget" | "permissions">("models");
+  const [tab, setTab] = useState<"models" | "mcp" | "budget" | "permissions" | "skills" | "gateway">("models");
   const [models, setModels] = useState<Array<{id:string;owned_by:string}>>([]);
   const [mcpServers, setMcpServers] = useState<Record<string,number>>({});
   const [balance, setBalance] = useState<Record<string,unknown>>({});
@@ -28,7 +28,7 @@ export default function SettingsPanel() {
     <div className="settings-panel">
       <h3>⚙ Settings</h3>
       <div className="settings-tabs">
-        {(["models","mcp","budget","permissions"] as const).map(t => (
+        {(["models","mcp","budget","permissions","skills","gateway"] as const).map(t => (
           <button key={t} className={`settings-tab ${tab===t?"active":""}`} onClick={()=>setTab(t)}>{t}</button>
         ))}
       </div>
@@ -67,6 +67,28 @@ export default function SettingsPanel() {
           <div className="settings-item"><span className="settings-key">SESSION</span><span className="settings-val">file writes, shell commands</span></div>
           <div className="settings-item"><span className="settings-key">EVERY TIME</span><span className="settings-val">file delete, git push, db query, email send</span></div>
           <div className="settings-item"><span className="settings-key">NEVER</span><span className="settings-val">keychain access, system security</span></div>
+        </div>
+      )}
+      {tab === "skills" && (
+        <div>
+          <p className="settings-hint">Activate skill prompts for the agent. Skills inject expert guidance into the system prompt.</p>
+          <div className="settings-item"><span className="settings-key">software-development</span><span className="settings-val">clean code, testing, git</span></div>
+          <div className="settings-item"><span className="settings-key">code-review</span><span className="settings-val">structured review checklist</span></div>
+          <div className="settings-item"><span className="settings-key">testing</span><span className="settings-val">test quality + coverage</span></div>
+          <div className="settings-item"><span className="settings-key">research</span><span className="settings-val">5-stage research pipeline</span></div>
+          <div className="settings-item"><span className="settings-key">creative</span><span className="settings-val">content generation</span></div>
+          <div className="settings-item"><span className="settings-key">data-analysis</span><span className="settings-val">data exploration + viz</span></div>
+          <p className="settings-hint">Use /skill &lt;name&gt; in chat to activate. Create bundles in ~/.elidia/skill-bundles/</p>
+        </div>
+      )}
+      {tab === "gateway" && (
+        <div>
+          <p className="settings-hint">Gateway Server enables remote access to the Elidia daemon via WebSocket + REST API.</p>
+          <div className="settings-item"><span className="settings-key">Default Port</span><span className="settings-val">9005</span></div>
+          <div className="settings-item"><span className="settings-key">WebSocket</span><span className="settings-val">ws://host:9005/ws</span></div>
+          <div className="settings-item"><span className="settings-key">API</span><span className="settings-val">POST /api/v1/chat</span></div>
+          <div className="settings-item"><span className="settings-key">Auth</span><span className="settings-val">Bearer token</span></div>
+          <p className="settings-hint">Start via CLI: elidia gateway start or /gateway in chat</p>
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 interface ResearchEvent { event: string; data: unknown; }
 
 export default function AdvancedPanel() {
-  const [tab, setTab] = useState<"research" | "creative">("research");
+  const [tab, setTab] = useState<"research" | "creative" | "moa">("research");
   const [question, setQuestion] = useState("");
   const [events, setEvents] = useState<ResearchEvent[]>([]);
   const [running, setRunning] = useState(false);
@@ -43,6 +43,7 @@ export default function AdvancedPanel() {
       <div className="info-tabs">
         <button className={`info-tab ${tab === "research" ? "active" : ""}`} onClick={() => setTab("research")}>🔬 Research</button>
         <button className={`info-tab ${tab === "creative" ? "active" : ""}`} onClick={() => setTab("creative")}>🎨 Creative</button>
+        <button className={`info-tab ${tab === "moa" ? "active" : ""}`} onClick={() => setTab("moa")}>🧠 MoA</button>
       </div>
 
       <div className="info-body">
@@ -68,6 +69,14 @@ export default function AdvancedPanel() {
           </div>
         )}
 
+        {tab === "moa" && (
+          <div>
+            <p className="info-sub" style={{marginBottom:12}}>Mixture of Agents — 2-3 models run in parallel with independent tool access, then synthesize the best answer.</p>
+            <p className="info-empty">Use /moa &lt;query&gt; in chat to run MoA. Default: claude-sonnet-4-6 + deepseek-v4-pro + gpt-4o in parallel.</p>
+            <div className="settings-item"><span className="settings-key">Premium Mix</span><span className="settings-val">Claude Sonnet + DeepSeek Pro + GPT-4o</span></div>
+            <div className="settings-item"><span className="settings-key">Budget Mix</span><span className="settings-val">DeepSeek Pro + Flash + GPT-4.1 Mini</span></div>
+          </div>
+        )}
         {tab === "creative" && (
           <div>
             <p className="info-sub" style={{marginBottom:12}}>Creative tools available via the chat agent — the agent routes to these automatically based on your prompt.</p>

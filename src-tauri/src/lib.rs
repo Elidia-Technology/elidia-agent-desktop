@@ -238,10 +238,9 @@ async fn send_chat(
     model: Option<String>,
     thinking: Option<String>,
 ) -> Result<i32, String> {
-    let socket = daemon_socket_path();
     let stream = ipc_connect()
         .await
-        .map_err(|e| format!("Daemon not running ({}: {})", socket.display(), e))?;
+        ?;
 
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -338,10 +337,9 @@ async fn rag_list_sources() -> Result<String, String> {
 #[tauri::command]
 async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String> {
     // rag_search needs special handling — the IPC request shape differs
-    let socket = daemon_socket_path();
     let stream = ipc_connect()
         .await
-        .map_err(|e| format!("Daemon not running ({}: {})", socket.display(), e))?;
+        ?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
 
@@ -380,7 +378,6 @@ async fn get_daemon_config() -> Result<Value, String> {
 
 #[tauri::command]
 async fn get_audit_log(limit: Option<i32>) -> Result<Value, String> {
-    let socket = daemon_socket_path();
     let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running: {}", e))?;
@@ -395,7 +392,6 @@ async fn get_audit_log(limit: Option<i32>) -> Result<Value, String> {
 
 #[tauri::command]
 async fn workflow_run(yaml: String) -> Result<Value, String> {
-    let socket = daemon_socket_path();
     let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running: {}", e))?;
@@ -444,8 +440,7 @@ async fn list_local_models() -> Result<Value, String> {
 // Not a #[tauri::command] — called directly from main.rs for headless mode.
 // Also usable via invoke() since Tauri auto-registers pub fns with compatible sigs.
 pub async fn headless_chat(message: String, mode: Option<String>) -> Result<String, String> {
-    let socket = daemon_socket_path();
-    let stream = ipc_connect().await.map_err(|e| format!("Daemon not running ({}): {}", socket.display(), e))?;
+    let stream = ipc_connect().await?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"chat","messages":[{"role":"user","content":message}],"mode":mode.unwrap_or_else(||"chat".into())});
@@ -468,7 +463,6 @@ pub async fn headless_chat(message: String, mode: Option<String>) -> Result<Stri
 
 #[tauri::command]
 async fn chat_local(app_handle: tauri::AppHandle, message: String, model: Option<String>) -> Result<i32, String> {
-    let socket = daemon_socket_path();
     let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -505,7 +499,6 @@ async fn get_trust_stats() -> Result<Value, String> {
 }
 
 async fn ipc_with_body(body: Value) -> Result<Value, String> {
-    let socket = daemon_socket_path();
     let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -517,7 +510,6 @@ async fn ipc_with_body(body: Value) -> Result<Value, String> {
 
 #[tauri::command]
 async fn start_research(app_handle: tauri::AppHandle, question: String) -> Result<i32, String> {
-    let socket = daemon_socket_path();
     let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);

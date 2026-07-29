@@ -27,6 +27,8 @@ jobs:
         run: npx tauri build --bundles dmg
         env:
           CI: true
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: npx tauri build --bundles deb,rpm

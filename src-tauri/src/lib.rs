@@ -280,7 +280,7 @@ async fn send_chat(
             }
             Ok(Err(e)) => return Err(format!("read: {}", e)),
             Err(_) => {
-                if let Ok(Some(req_id)) = check_pending_permissions(&socket).await {
+                if let Ok(Some(req_id)) = check_pending_permissions().await {
                     let (tx, rx) = oneshot::channel();
                     perm_state.pending.lock().await.insert(req_id.clone(), tx);
                     app_handle.emit("permission-request", serde_json::json!({"id": req_id}))
@@ -308,7 +308,7 @@ async fn respond_permission(state: tauri::State<'_, PermissionState>, id: String
     }
 }
 
-async fn check_pending_permissions(socket: &PathBuf) -> Result<Option<String>, String> {
+async fn check_pending_permissions() -> Result<Option<String>, String> {
     let stream = ipc_connect().await.map_err(|e| format!("poll: {}", e))?;
     let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);

@@ -242,7 +242,7 @@ async fn send_chat(
         .await
         ?;
 
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
 
     let request = IpcRequest {
@@ -310,7 +310,7 @@ async fn respond_permission(state: tauri::State<'_, PermissionState>, id: String
 
 async fn check_pending_permissions(socket: &PathBuf) -> Result<Option<String>, String> {
     let stream = ipc_connect().await.map_err(|e| format!("poll: {}", e))?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     writer.write_all(b"{\"cmd\":\"pending_permissions\"}\n").await.map_err(|e| format!("w: {}", e))?;
     let mut line = String::new();
@@ -340,7 +340,7 @@ async fn rag_search(query: String, limit: Option<i32>) -> Result<String, String>
     let stream = ipc_connect()
         .await
         ?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
 
     let payload = serde_json::json!({
@@ -381,7 +381,7 @@ async fn get_audit_log(limit: Option<i32>) -> Result<Value, String> {
     let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running: {}", e))?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"get_audit_log","limit":limit.unwrap_or(40)});
     writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
@@ -395,7 +395,7 @@ async fn workflow_run(yaml: String) -> Result<Value, String> {
     let stream = ipc_connect()
         .await
         .map_err(|e| format!("Daemon not running: {}", e))?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"workflow_run","yaml":yaml});
     writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
@@ -441,7 +441,7 @@ async fn list_local_models() -> Result<Value, String> {
 // Also usable via invoke() since Tauri auto-registers pub fns with compatible sigs.
 pub async fn headless_chat(message: String, mode: Option<String>) -> Result<String, String> {
     let stream = ipc_connect().await?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"chat","messages":[{"role":"user","content":message}],"mode":mode.unwrap_or_else(||"chat".into())});
     writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
@@ -464,7 +464,7 @@ pub async fn headless_chat(message: String, mode: Option<String>) -> Result<Stri
 #[tauri::command]
 async fn chat_local(app_handle: tauri::AppHandle, message: String, model: Option<String>) -> Result<i32, String> {
     let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"chat_local","messages":[{"role":"user","content":message}],"model":model.unwrap_or_else(|| "qwen3:1.7b".into())});
     writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
@@ -500,7 +500,7 @@ async fn get_trust_stats() -> Result<Value, String> {
 
 async fn ipc_with_body(body: Value) -> Result<Value, String> {
     let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     writer.write_all(format!("{}\n", body).as_bytes()).await.map_err(|e| format!("write: {}", e))?;
     let mut line = String::new();
@@ -511,7 +511,7 @@ async fn ipc_with_body(body: Value) -> Result<Value, String> {
 #[tauri::command]
 async fn start_research(app_handle: tauri::AppHandle, question: String) -> Result<i32, String> {
     let stream = ipc_connect().await.map_err(|e| format!("Daemon not running: {}", e))?;
-    let (reader, mut writer) = stream.into_split();
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut buf_reader = BufReader::new(reader);
     let payload = serde_json::json!({"cmd":"research_start","question":question});
     writer.write_all(format!("{}\n", payload).as_bytes()).await.map_err(|e| format!("write: {}", e))?;

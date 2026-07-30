@@ -4,7 +4,6 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::panic;
 use std::path::PathBuf;
-use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -57,12 +56,6 @@ fn daemon_ipc_endpoint() -> String {
     {
         format!("\\\\.\\pipe\\elidia-daemon-{}", id)
     }
-}
-
-/// Kept for backward compatibility with existing Unix code paths.
-#[cfg(unix)]
-fn daemon_socket_path() -> PathBuf {
-    PathBuf::from(daemon_ipc_endpoint())
 }
 
 // ---- JSON types (mirrors Python's daemon IPC protocol) ----

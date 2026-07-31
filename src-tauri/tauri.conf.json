@@ -56,7 +56,7 @@
       "endpoints": [
         "https://github.com/Elidia-Technology/elidia-agent-desktop/releases/latest/download/latest.json"
       ],
-      "pubkey": "PLACEHOLDER \u2014 generate with 'cargo tauri signer generate'"
+      "pubkey": ""
     }
   }
 }

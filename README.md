@@ -1,11 +1,11 @@
-# Elidia Agent Desktop — v0.2.2
+# Elidia Agent Desktop — v0.2.3
 
 Native desktop app (Tauri 2) wrapping the Elidia CLI engine. macOS, Linux, Windows.
 
 ## Download
 | Platform | Download |
 |---|---|
-| macOS | [Elidia Agent_0.2.2_x64.dmg](https://github.com/Elidia-Technology/elidia-agent-desktop/releases/latest) (13MB) |
+| macOS | [Elidia Agent_0.2.3_x64.dmg](https://github.com/Elidia-Technology/elidia-agent-desktop/releases/latest) (13MB) |
 | Linux (.deb/.rpm) | [CI Build](https://github.com/Elidia-Technology/elidia-agent-desktop/actions) |
 | Windows (.msi) | [CI Build](https://github.com/Elidia-Technology/elidia-agent-desktop/actions) |
 

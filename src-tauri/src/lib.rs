@@ -12,7 +12,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[cfg(unix)]
 use tokio::net::UnixStream;
 #[cfg(windows)]
-use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
+use tokio::net::TcpStream;
 use tokio::sync::{oneshot, Mutex};
 
 /// Shared state for the permission IPC round-trip (AIUT-2148).
@@ -30,23 +30,24 @@ struct PermissionState {
 /// Python's `elidia.daemon.worker._short_socket_path()` — SHA-256 of the
 /// resolved ELIDIA_HOME, first 12 hex chars.
 ///
-/// Unix: socket path in temp dir
-/// Windows: named pipe path `\\.\pipe\elidia-daemon-{hash}`
+/// Unix: socket path in temp dir.
+/// Windows: TCP loopback (named pipes require a daemon-side server that isn't
+/// yet implemented; TCP is already served by DaemonIPCServer when
+/// ELIDIA_DAEMON_PORT is set). Port defaults to 9005, overridable via env.
 fn daemon_ipc_endpoint() -> String {
-    let elidia_home = std::env::var("ELIDIA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("/tmp"))
-                .join(".elidia")
-        });
-    let resolved = std::fs::canonicalize(&elidia_home).unwrap_or(elidia_home);
-    let hash = Sha256::digest(resolved.to_string_lossy().as_bytes());
-    let hash_hex = format!("{:x}", hash);
-    let id = &hash_hex[..12];
-
     #[cfg(unix)]
     {
+        let elidia_home = std::env::var("ELIDIA_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("/tmp"))
+                    .join(".elidia")
+            });
+        let resolved = std::fs::canonicalize(&elidia_home).unwrap_or(elidia_home);
+        let hash = Sha256::digest(resolved.to_string_lossy().as_bytes());
+        let hash_hex = format!("{:x}", hash);
+        let id = &hash_hex[..12];
         std::env::temp_dir()
             .join(format!("elidia-daemon-{}.sock", id))
             .to_string_lossy()
@@ -54,7 +55,11 @@ fn daemon_ipc_endpoint() -> String {
     }
     #[cfg(windows)]
     {
-        format!("\\\\.\\pipe\\elidia-daemon-{}", id)
+        let port: u16 = std::env::var("ELIDIA_DAEMON_PORT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(9005);
+        format!("127.0.0.1:{}", port)
     }
 }
 
@@ -122,7 +127,7 @@ struct ToolInfo {
 // ---- Platform-agnostic IPC transport ----
 
 /// Connect to the daemon using the appropriate transport for this platform.
-/// Unix: connects via UnixStream. Windows: connects via NamedPipe.
+/// Unix: connects via UnixStream. Windows: connects via TCP loopback.
 async fn ipc_connect() -> Result<impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin, String> {
     let endpoint = daemon_ipc_endpoint();
 
@@ -135,8 +140,8 @@ async fn ipc_connect() -> Result<impl tokio::io::AsyncRead + tokio::io::AsyncWri
     }
     #[cfg(windows)]
     {
-        ClientOptions::new()
-            .open(&endpoint)
+        TcpStream::connect(&endpoint)
+            .await
             .map_err(|e| format!("Daemon not running ({}: {})", endpoint, e))
     }
 }

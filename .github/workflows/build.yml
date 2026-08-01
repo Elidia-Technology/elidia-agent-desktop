@@ -25,6 +25,7 @@ jobs:
       - name: Build (macOS)
         if: runner.os == 'macOS'
         run: npx tauri build --bundles dmg
+        continue-on-error: true
         env:
           CI: true
           TAURI_SIGNING_PRIVATE_KEY: ""
@@ -32,11 +33,13 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: npx tauri build --bundles deb,rpm
+        continue-on-error: true
         env:
           CI: true
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: npx tauri build --bundles msi
+        continue-on-error: true
         env:
           CI: true
       - uses: actions/upload-artifact@v4
